@@ -2,11 +2,16 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-type View = "home" | "calendar" | "health" | "finance" | "jobs" | "travel" | "memos";
+type View = "home" | "calendar" | "growth" | "health" | "finance" | "jobs" | "travel" | "memos";
 type Category = { id: string; name: string; color: string };
 type EventItem = { id: string; date: string; start: string; end: string; title: string; categoryId: string; updatedAt: number };
 type Todo = { id: string; date: string; text: string; done: boolean; order: number; updatedAt: number };
 type Memo = { id: string; text: string; order: number; createdAt: number; updatedAt: number };
+type ProgressState = "未开始" | "进行中" | "已掌握";
+type Skill = { id: string; name: string; icon: string; progress: ProgressState; beginner: string[]; advanced: string[]; points: string[]; resources: string[]; notes: string; lastCheckin?: string; updatedAt: number };
+type LearningTrack = { id: string; name: string; icon: string; subtitle: string; plan: string[]; today: string[]; material: string; updatedAt: number };
+type Checkin = { id: string; trackId: string; date: string; note: string; updatedAt: number };
+type Goal = { id: string; kind: "证书" | "副业" | "技能"; text: string; done: boolean; updatedAt: number };
 type WorkbenchData = {
   version: 1;
   exportedAt?: number;
@@ -14,6 +19,10 @@ type WorkbenchData = {
   events: EventItem[];
   todos: Todo[];
   memos: Memo[];
+  skills: Skill[];
+  learningTracks: LearningTrack[];
+  checkins: Checkin[];
+  goals: Goal[];
 };
 
 const STORAGE_KEY = "bear-workbench-v1";
@@ -35,6 +44,37 @@ const categories: Category[] = [
   { id: "other", name: "其他", color: "#A9A5A3" },
 ];
 
+const phaseTwoDefaults = (now = Date.now()) => ({
+  skills: [
+    { id:"agent",name:"AI Agent",icon:"✦",progress:"进行中" as ProgressState,beginner:["理解 Agent、工具调用与记忆","搭建一个单 Agent 小项目"],advanced:["多 Agent 协作","评估、观测与安全边界"],points:["LLM 推理","工具调用","RAG","工作流编排"],resources:["OpenAI 官方开发文档","B 站：AI Agent 入门课程"],notes:"把 Agent 能力逐步接入 RPA 场景。",lastCheckin:todayKey(),updatedAt:now },
+    { id:"html",name:"HTML",icon:"〈〉",progress:"进行中" as ProgressState,beginner:["语义化标签","表单与基础可访问性"],advanced:["Web Components 概念","性能与 SEO"],points:["DOM 结构","表单","语义化","无障碍"],resources:["MDN Web Docs","B 站：HTML 零基础教程"],notes:"",updatedAt:now },
+    { id:"xpath",name:"XPath",icon:"⌘",progress:"未开始" as ProgressState,beginner:["节点、属性与路径","常用定位表达式"],advanced:["轴与复杂条件","稳定定位策略"],points:["相对路径","谓词","轴","文本匹配"],resources:["MDN XPath 指南","影刀 XPath 实战资料"],notes:"",updatedAt:now },
+    { id:"python",name:"Python",icon:"Py",progress:"进行中" as ProgressState,beginner:["语法、数据结构、函数","文件与异常处理"],advanced:["自动化脚本","接口与数据处理"],points:["函数","类","requests","pandas"],resources:["Python 官方教程","B 站：Python 自动化办公"],notes:"重点练习可复用的 RPA 辅助脚本。",updatedAt:now },
+    { id:"mysql",name:"MySQL",icon:"DB",progress:"未开始" as ProgressState,beginner:["增删改查","表设计与关联"],advanced:["索引与查询优化","事务与权限"],points:["SQL","JOIN","索引","事务"],resources:["MySQL 官方文档","SQLBolt 交互教程"],notes:"",updatedAt:now },
+    { id:"api",name:"API",icon:"↔",progress:"进行中" as ProgressState,beginner:["HTTP 与 REST","用工具调试请求"],advanced:["鉴权、分页与重试","接口设计与安全"],points:["HTTP","JSON","REST","OAuth"],resources:["MDN HTTP 指南","Postman Learning Center"],notes:"",updatedAt:now },
+    { id:"prompt",name:"Prompt Engineering",icon:"Aa",progress:"进行中" as ProgressState,beginner:["清晰指令与上下文","结构化输出"],advanced:["评测与迭代","工具使用提示"],points:["角色","约束","示例","评估"],resources:["OpenAI 提示工程指南","Prompt Engineering Guide"],notes:"",updatedAt:now },
+    { id:"workflow",name:"工作流",icon:"⌁",progress:"进行中" as ProgressState,beginner:["拆解输入、处理、输出","异常与分支"],advanced:["可观测性","人机协同与恢复"],points:["状态机","幂等","重试","日志"],resources:["影刀学院","n8n 官方文档"],notes:"",updatedAt:now },
+    { id:"bi",name:"BI（基础）",icon:"▥",progress:"未开始" as ProgressState,beginner:["指标与维度","基础图表"],advanced:["看板设计","数据建模"],points:["指标","维度","可视化","Power BI"],resources:["Microsoft Learn Power BI"],notes:"",updatedAt:now },
+    { id:"warehouse",name:"数据仓库（基础）",icon:"▤",progress:"未开始" as ProgressState,beginner:["事实表与维度表","ETL 基础"],advanced:["分层建模","质量与血缘"],points:["ETL","星型模型","分层"],resources:["阿里云数据仓库基础文章"],notes:"",updatedAt:now },
+    { id:"linux",name:"Linux（基础）",icon:"$_",progress:"未开始" as ProgressState,beginner:["目录与常用命令","文件权限"],advanced:["进程、网络与脚本","部署排障"],points:["Shell","权限","进程","网络"],resources:["Linux Journey","鸟哥的 Linux 私房菜"],notes:"",updatedAt:now },
+  ],
+  learningTracks: [
+    { id:"ielts",name:"雅思备考",icon:"EN",subtitle:"英语 · 每日 10 个高频词",plan:["第 1 阶段：语音与核心词汇","第 2 阶段：听读输入","第 3 阶段：写作与口语输出"],today:["resilient /rɪˈzɪliənt/ 有韧性的","allocate /ˈæləkeɪt/ 分配","口语：描述一次解决工作难题的经历"],material:"跟读例句：She remained resilient through every change.",updatedAt:now },
+    { id:"topik",name:"韩语 TOPIK",icon:"한",subtitle:"轻量培养 · 每日 5 词 + 1 语法",plan:["掌握韩文字母与发音","积累生活场景词汇","TOPIK I 语法与题型"],today:["안녕하세요 你好","오늘 今天","공부하다 学习","좋아하다 喜欢","천천히 慢慢地","语法：-고 싶어요（想要……）"],material:"오늘 한국어를 공부하고 싶어요.",updatedAt:now },
+    { id:"cpa",name:"注册会计师",icon:"CPA",subtitle:"轻量入门 · 每日 1 概念 + 1 例题",plan:["会计要素与记账基础","审计与税法概览","按章节建立知识树"],today:["概念：资产是由过去事项形成、由企业控制并预期带来经济利益的资源","例题：用银行存款购入设备，会同时影响哪些会计科目？"],material:"建议每天 15 分钟，不追求速度，先建立框架。",updatedAt:now },
+    { id:"photoshop",name:"Photoshop",icon:"Ps",subtitle:"工具 + 小练习",plan:["认识图层与选区","基础修图与文字排版","完成 3 个小设计案例"],today:["工具：污点修复画笔（J）","练习：为一张生活照移除一个小杂物"],material:"快捷键：⌘J 复制图层；⌘T 自由变换。",updatedAt:now },
+    { id:"law",name:"法律常识",icon:"§",subtitle:"每日 1 个案例知识点",plan:["劳动法与社保公积金","婚姻家庭与民法","刑法基础常识"],today:["案例：公司解除劳动合同，需要符合什么条件？","要点：注意保存劳动合同、工资记录与沟通证据。"],material:"内容仅作常识学习，具体问题仍需咨询专业人士。",updatedAt:now },
+    { id:"finance-study",name:"理财入门",icon:"¥",subtitle:"每日 1 条可执行建议",plan:["记录现金流","建立应急资金","了解低风险配置与长期投资"],today:["今天的小行动：检查是否已预留 3–6 个月必要支出的应急资金。"],material:"建议基于“你的收入”计算比例，界面不会展示收入数字。",updatedAt:now },
+  ],
+  checkins: [] as Checkin[],
+  goals: [
+    { id:uid(),kind:"证书" as const,text:"取得雅思目标成绩",done:false,updatedAt:now },
+    { id:uid(),kind:"证书" as const,text:"通过 TOPIK 初级",done:false,updatedAt:now },
+    { id:uid(),kind:"副业" as const,text:"探索 RPA 自动化咨询",done:false,updatedAt:now },
+    { id:uid(),kind:"技能" as const,text:"完成第一个 RPA + AI 作品",done:false,updatedAt:now },
+  ],
+});
+
 const seedData = (): WorkbenchData => {
   const today = todayKey();
   const tomorrow = new Date();
@@ -43,6 +83,7 @@ const seedData = (): WorkbenchData => {
   return {
     version: 1,
     categories,
+    ...phaseTwoDefaults(now),
     events: [
       { id: uid(), date: today, start: "09:30", end: "10:30", title: "整理本周 RPA 任务", categoryId: "work", updatedAt: now },
       { id: uid(), date: today, start: "18:30", end: "19:30", title: "普拉提课程", categoryId: "sport", updatedAt: now },
@@ -63,6 +104,7 @@ const seedData = (): WorkbenchData => {
 const nav: { id: View; label: string; icon: string }[] = [
   { id: "home", label: "首页", icon: "⌂" },
   { id: "calendar", label: "日历", icon: "▦" },
+  { id: "growth", label: "成长", icon: "✦" },
   { id: "health", label: "健康", icon: "♡" },
   { id: "finance", label: "财务", icon: "◒" },
   { id: "jobs", label: "招聘", icon: "♢" },
@@ -84,7 +126,17 @@ function useWorkbench() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      setData(saved ? JSON.parse(saved) : seedData());
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const defaults = phaseTwoDefaults();
+        setData({
+          ...parsed,
+          skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
+          learningTracks: Array.isArray(parsed.learningTracks) ? parsed.learningTracks : defaults.learningTracks,
+          checkins: Array.isArray(parsed.checkins) ? parsed.checkins : defaults.checkins,
+          goals: Array.isArray(parsed.goals) ? parsed.goals : defaults.goals,
+        });
+      } else setData(seedData());
     } catch {
       setData(seedData());
     }
@@ -177,7 +229,14 @@ export default function Home() {
       try {
         const parsed = JSON.parse(String(reader.result));
         if (parsed.version !== 1 || !Array.isArray(parsed.events) || !Array.isArray(parsed.todos) || !Array.isArray(parsed.memos)) throw new Error();
-        setPendingImport(parsed);
+        const defaults = phaseTwoDefaults();
+        setPendingImport({
+          ...parsed,
+          skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
+          learningTracks: Array.isArray(parsed.learningTracks) ? parsed.learningTracks : defaults.learningTracks,
+          checkins: Array.isArray(parsed.checkins) ? parsed.checkins : defaults.checkins,
+          goals: Array.isArray(parsed.goals) ? parsed.goals : defaults.goals,
+        });
         setImportMode("merge");
       } catch { alert("这个文件不是有效的小熊工作台数据。"); }
     };
@@ -196,7 +255,17 @@ export default function Home() {
       };
       const cats = new Map(current.categories.map((x) => [x.id, x]));
       pendingImport.categories.forEach((x) => cats.set(x.id, x));
-      return { ...current, categories: [...cats.values()], events: merge(current.events, pendingImport.events), todos: merge(current.todos, pendingImport.todos), memos: merge(current.memos, pendingImport.memos) };
+      return {
+        ...current,
+        categories: [...cats.values()],
+        events: merge(current.events, pendingImport.events),
+        todos: merge(current.todos, pendingImport.todos),
+        memos: merge(current.memos, pendingImport.memos),
+        skills: merge(current.skills, pendingImport.skills),
+        learningTracks: merge(current.learningTracks, pendingImport.learningTracks),
+        checkins: merge(current.checkins, pendingImport.checkins),
+        goals: merge(current.goals, pendingImport.goals),
+      };
     });
     setPendingImport(null); setImportMode(null);
   };
@@ -212,8 +281,9 @@ export default function Home() {
       <main className="content">
         {view === "home" && <Dashboard data={data} go={go} toggleTodo={toggleTodo} />}
         {view === "calendar" && <Calendar data={data} dates={dates} selectedDate={selectedDate} setSelectedDate={setSelectedDate} category={category} toggleTodo={toggleTodo} move={move} onAdd={() => setEventModal("new")} onEdit={setEventModal} onDelete={setDeleteTarget} patch={patch} />}
+        {view === "growth" && <Growth data={data} patch={patch} />}
         {view === "memos" && <Memos data={data} go={go} toggleTodo={toggleTodo} move={move} onAdd={() => setMemoModal(true)} onDelete={setDeleteTarget} patch={patch} />}
-        {!["home","calendar","memos"].includes(view) && <ComingSoon view={view} />}
+        {!["home","calendar","growth","memos"].includes(view) && <ComingSoon view={view} />}
       </main>
 
       <nav className="mobile-nav">{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span></button>)}</nav>
@@ -232,6 +302,8 @@ function Dashboard({ data, go, toggleTodo }: { data: WorkbenchData; go: (v: View
   const today = todayKey();
   const d = new Date();
   const todays = data.todos.filter((t) => t.date === today);
+  const todayStudy = data.checkins.filter((c) => c.date === today);
+  const careerDone = data.skills.some((s) => s.lastCheckin === today);
   const latest = [...data.memos].sort((a, b) => b.createdAt - a.createdAt).slice(0, 3);
   const greeting = greetings[Math.floor((d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate()) % greetings.length)];
   return <div className="page dashboard">
@@ -241,7 +313,7 @@ function Dashboard({ data, go, toggleTodo }: { data: WorkbenchData; go: (v: View
     <section className="overview-grid">
       <button className="overview-card pink" onClick={() => go("calendar", today)}><div className="card-title"><span>今日待办</span><i>✓</i></div><strong>{todays.filter(t=>t.done).length}<small> / {todays.length}</small></strong><div className="progress"><i style={{width: `${todays.length ? todays.filter(t=>t.done).length/todays.length*100 : 0}%`}} /></div><p>{todays.length ? `完成 ${todays.filter(t=>t.done).length} 件啦，继续稳稳前进` : "今天还没有待办，给自己一点自由"}</p></button>
       <button className="overview-card cream" onClick={() => go("memos")}><div className="card-title"><span>临时备忘</span><i>✎</i></div>{latest.length ? <ul>{latest.map(m=><li key={m.id}>• {m.text}</li>)}</ul> : <p>还没有小纸条</p>}<span className="card-link">打开备忘 →</span></button>
-      <div className="overview-card lilac"><div className="card-title"><span>今日打卡</span><i>✦</i></div><div className="checkin-row">{[["学习","20 min",true],["健身","普拉提",false],["职业","技能树",false]].map(([a,b,c])=><button key={String(a)} className={c ? "done" : ""}><i>{c ? "✓" : ""}</i><span><b>{a}</b><small>{b}</small></span></button>)}</div></div>
+      <div className="overview-card lilac"><div className="card-title"><span>今日打卡</span><i>✦</i></div><div className="checkin-row">{[["学习",todayStudy.length ? `${todayStudy.length} 项完成` : "等待打卡",todayStudy.length>0],["健身","阶段三开放",false],["职业",careerDone ? "技能已复盘" : "技能树",careerDone]].map(([a,b,c])=><button key={String(a)} className={c ? "done" : ""} onClick={()=>a!=="健身"&&go("growth")}><i>{c ? "✓" : ""}</i><span><b>{a}</b><small>{b}</small></span></button>)}</div></div>
     </section>
     <section className="today-panel"><div className="panel-head"><div><span className="eyebrow">TODAY&apos;S PLAN</span><h2>今天的小计划</h2></div><button onClick={() => go("calendar", today)}>＋ 添加待办</button></div>{todays.length ? <div className="dashboard-todos">{todays.sort((a,b)=>a.order-b.order).map(t=><label key={t.id}><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)} /><i></i><span className={t.done?"strike":""}>{t.text}</span><small>{t.done ? "已完成" : "待完成"}</small></label>)}</div> : <Empty text="今天还没有安排，先喝杯水吧。" />}</section>
   </div>;
@@ -265,7 +337,7 @@ function Calendar({ data, dates, selectedDate, setSelectedDate, category, toggle
     <header className="page-head"><div><span className="eyebrow">MY CALENDAR</span><h1>日历与日程</h1><p>按自己的节奏，把每一天过得有条不紊。</p></div><button onClick={onAdd}>＋ 新建日程</button></header>
     <div className="quick-parse"><span>✦</span><input value={quickText} onChange={e=>setQuickText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&parseQuick()} placeholder="试试说：明天下午 3 点准备面试资料" /><button onClick={parseQuick}>帮我记下</button></div>
     <div className="calendar-layout"><aside className="date-rail">{dates.map((date:string)=><button key={date} onClick={()=>setSelectedDate(date)} className={`${selectedDate===date?"selected":""} ${date===todayKey()?"today":""}`}><small>{weekday(date)}</small><strong>{new Date(`${date}T12:00:00`).getDate()}</strong><span>{date===todayKey()?"今天":`${new Date(`${date}T12:00:00`).getMonth()+1}月`}</span></button>)}</aside>
-    <section className="day-detail"><div className="day-heading"><div><span>{displayDate(selectedDate)} · {weekday(selectedDate)}</span><h2>{selectedDate===todayKey()?"今天，温柔地完成这些事":"这一天的安排"}</h2></div><button className="secondary" onClick={onAdd}>＋ 添加日程</button></div>
+    <section className="day-detail"><div className="day-heading"><div><span>{displayDate(selectedDate)} · {weekday(selectedDate)}</span><h2>{selectedDate===todayKey()?"今天，温柔地完成这些事":"这一天的安排"}</h2><div className="calendar-checkins">{data.checkins.filter((c:Checkin)=>c.date===selectedDate).map((c:Checkin)=><b key={c.id}>✦ {data.learningTracks.find((t:LearningTrack)=>t.id===c.trackId)?.name}</b>)}{data.skills.some((s:Skill)=>s.lastCheckin===selectedDate)&&<b>⌁ 职业学习</b>}</div></div><button className="secondary" onClick={onAdd}>＋ 添加日程</button></div>
       <div className="event-list">{data.events.filter((e:EventItem)=>e.date===selectedDate).sort((a:EventItem,b:EventItem)=>a.start.localeCompare(b.start)).map((e:EventItem)=><article className="event-card" key={e.id} style={{"--event":category(e.categoryId).color} as React.CSSProperties}><time>{e.start}<small>{e.end}</small></time><i></i><div><span>{category(e.categoryId).name}</span><button onClick={()=>onEdit(e)}>{e.title}</button></div><button className="more" onClick={()=>onDelete({kind:"event",id:e.id})} aria-label="删除日程">×</button></article>)}{!data.events.some((e:EventItem)=>e.date===selectedDate)&&<Empty text="这一天还空空的，留给期待也很好。" />}</div>
       <section className="todo-section"><div className="todo-head"><h3>当天 To-do</h3><span>{data.todos.filter((t:Todo)=>t.date===selectedDate&&t.done).length} / {data.todos.filter((t:Todo)=>t.date===selectedDate).length} 完成</span></div>
       <div className="todo-list">{data.todos.filter((t:Todo)=>t.date===selectedDate).sort((a:Todo,b:Todo)=>a.order-b.order).map((t:Todo)=><div className="todo-row" key={t.id}><label><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)} /><i></i><span className={t.done?"strike":""}>{t.text}</span></label><div><button onClick={()=>move("todo",t.id,-1)} aria-label="上移">↑</button><button onClick={()=>move("todo",t.id,1)} aria-label="下移">↓</button><button onClick={()=>onDelete({kind:"todo",id:t.id})} aria-label="删除">×</button></div></div>)}</div>
@@ -283,6 +355,76 @@ function Memos({ data, go, toggleTodo, move, onAdd, onDelete, patch }: any) {
   <div className="memo-list">{[...data.memos].sort((a,b)=>a.order-b.order).map((m:Memo)=><article key={m.id}>{editing===m.id?<input autoFocus value={text} onChange={e=>setText(e.target.value)} onBlur={()=>save(m.id)} onKeyDown={e=>e.key==="Enter"&&save(m.id)}/>:<button className="memo-text" onClick={()=>{setEditing(m.id);setText(m.text)}}>{m.text}</button>}<footer><time>{new Date(m.createdAt).toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</time><div><button onClick={()=>move("memo",m.id,-1)}>↑</button><button onClick={()=>move("memo",m.id,1)}>↓</button><button onClick={()=>onDelete({kind:"memo",id:m.id})}>删除</button></div></footer></article>)}{!data.memos.length&&<Empty text="灵感还没落下来，小熊在这里等你。" />}</div></section>
   <section className="paper-panel todo-summary"><div className="panel-head"><div><h2>未完成 To-do</h2><p>来自日历的同一份任务清单</p></div><span>{undone.length} 项</span></div>{undone.length?<div className="summary-list">{undone.map((t:Todo)=><label key={t.id}><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)}/><i></i><button onClick={()=>go("calendar",t.date)}><span>{t.text}</span><small>{displayDate(t.date)} · {weekday(t.date)}</small></button></label>)}</div>:<Empty text="待办都完成啦，给今天的你一朵花。" />}</section></div>
   <button className="bear-fab inner" onClick={onAdd}><img src="/bears/app-bear.jpg" alt="" /><span>记一下</span></button></div>;
+}
+
+function Growth({ data, patch }: { data: WorkbenchData; patch: (fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {
+  const [tab,setTab]=useState<"path"|"learn"|"goals">("path");
+  const [openSkill,setOpenSkill]=useState<string>("agent");
+  const [openTrack,setOpenTrack]=useState<string>("ielts");
+  const [sourceText,setSourceText]=useState("");
+  const [goalText,setGoalText]=useState("");
+  const [goalKind,setGoalKind]=useState<Goal["kind"]>("证书");
+  const [deleteGoal,setDeleteGoal]=useState<string|null>(null);
+  const today=todayKey();
+  const checked=(trackId:string)=>data.checkins.some(c=>c.trackId===trackId&&c.date===today);
+  const toggleTrack=(trackId:string)=>{
+    patch(d=>{
+      const hit=d.checkins.find(c=>c.trackId===trackId&&c.date===today);
+      return {...d,checkins:hit?d.checkins.filter(c=>c.id!==hit.id):[...d.checkins,{id:uid(),trackId,date:today,note:"完成今日学习",updatedAt:Date.now()}]};
+    });
+  };
+  const cycleSkill=(id:string)=>{
+    const states:ProgressState[]=["未开始","进行中","已掌握"];
+    patch(d=>({...d,skills:d.skills.map(s=>s.id===id?{...s,progress:states[(states.indexOf(s.progress)+1)%3],lastCheckin:today,updatedAt:Date.now()}:s)}));
+  };
+  const summarize=(id:string)=>{
+    const sentences=sourceText.split(/[。！？\n]+/).map(x=>x.trim()).filter(Boolean).slice(0,4);
+    if(!sentences.length)return;
+    patch(d=>({...d,skills:d.skills.map(s=>s.id===id?{...s,notes:`资料提炼：${sentences.map((x,i)=>`${i+1}. ${x}`).join("；")}`,updatedAt:Date.now()}:s)}));
+    setSourceText("");
+  };
+  const addGoal=(e:FormEvent)=>{
+    e.preventDefault();if(!goalText.trim())return;
+    patch(d=>({...d,goals:[...d.goals,{id:uid(),kind:goalKind,text:goalText.trim(),done:false,updatedAt:Date.now()}]}));setGoalText("");
+  };
+  const mastered=data.skills.filter(s=>s.progress==="已掌握").length;
+  const inProgress=data.skills.filter(s=>s.progress==="进行中").length;
+  return <div className="page growth-page">
+    <header className="growth-hero"><div><span className="eyebrow">RPA + AI GROWTH MAP</span><h1>把成长，变成看得见的路径</h1><p>先成为更专注的 RPA 开发者，再一步步走向 RPA + AI。</p><div className="growth-stats"><span><b>{inProgress}</b> 项进行中</span><span><b>{mastered}</b> 项已掌握</span><span><b>{data.checkins.filter(c=>c.date===today).length}</b> 项今日打卡</span></div></div><img src="/bears/bear-grid.jpg" alt="学习中的水彩小熊" /></header>
+    <nav className="growth-tabs"><button className={tab==="path"?"active":""} onClick={()=>setTab("path")}>职业技能树</button><button className={tab==="learn"?"active":""} onClick={()=>setTab("learn")}>学习打卡</button><button className={tab==="goals"?"active":""} onClick={()=>setTab("goals")}>长期目标</button></nav>
+
+    {tab==="path"&&<section>
+      <div className="growth-section-head"><div><span className="eyebrow">CAREER PATH</span><h2>RPA + AI 技能路径</h2></div><p>点击技能卡片查看计划，再点击状态按钮推进进度。</p></div>
+      <div className="skill-grid">{data.skills.map(skill=><article key={skill.id} className={`skill-card ${openSkill===skill.id?"open":""}`}>
+        <button className="skill-summary" onClick={()=>setOpenSkill(openSkill===skill.id?"":skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.points.slice(0,3).join(" · ")}</small></span><em className={skill.progress==="已掌握"?"mastered":skill.progress==="进行中"?"doing":""}>{skill.progress}</em></button>
+        {openSkill===skill.id&&<div className="skill-detail">
+          <div className="plan-columns"><div><h4>初级计划</h4>{skill.beginner.map(x=><p key={x}>○ {x}</p>)}</div><div><h4>进阶计划</h4>{skill.advanced.map(x=><p key={x}>◇ {x}</p>)}</div></div>
+          <div className="knowledge"><h4>核心知识点</h4>{skill.points.map(x=><span key={x}>{x}</span>)}</div>
+          <div className="resource-list"><h4>推荐资料</h4>{skill.resources.map(x=><p key={x}>↗ {x}</p>)}</div>
+          {skill.notes&&<div className="skill-note"><b>我的总结</b><p>{skill.notes}</p></div>}
+          <details className="material-box"><summary>粘贴我的资料并本地提炼</summary><textarea value={sourceText} onChange={e=>setSourceText(e.target.value)} placeholder="粘贴学习笔记或资料文字。工作台会在本地抽取前四个要点，不会上传。"/><button onClick={()=>summarize(skill.id)}>提炼到技能卡</button></details>
+          <footer><small>{skill.lastCheckin?`最近打卡：${displayDate(skill.lastCheckin)}`:"还没有打卡"}</small><button onClick={()=>cycleSkill(skill.id)}>更新进度并打卡 →</button></footer>
+        </div>}
+      </article>)}</div>
+    </section>}
+
+    {tab==="learn"&&<section>
+      <div className="growth-section-head"><div><span className="eyebrow">DAILY LEARNING</span><h2>今天学一点，就很好</h2></div><p>每项都有实际内容、阶段计划和独立打卡。</p></div>
+      <div className="track-layout"><aside>{data.learningTracks.map(track=><button key={track.id} className={openTrack===track.id?"active":""} onClick={()=>setOpenTrack(track.id)}><i>{track.icon}</i><span>{track.name}<small>{track.subtitle}</small></span><b className={checked(track.id)?"checked":""}>{checked(track.id)?"✓":""}</b></button>)}</aside>
+      {data.learningTracks.filter(t=>t.id===openTrack).map(track=><article className="track-detail" key={track.id}><div className="track-title"><div><span className="track-icon">{track.icon}</span><div><h2>{track.name}</h2><p>{track.subtitle}</p></div></div><button className={checked(track.id)?"checked":""} onClick={()=>toggleTrack(track.id)}>{checked(track.id)?"✓ 今日已打卡":"今日打卡"}</button></div>
+        <div className="today-learning"><span>今日内容</span>{track.today.map(x=><p key={x}>✦ {x}</p>)}<blockquote>{track.material}</blockquote></div>
+        <div className="stage-plan"><h3>阶段学习计划</h3>{track.plan.map((x,i)=><div key={x}><b>0{i+1}</b><span>{x}</span></div>)}</div>
+        <div className="track-note"><label>我的学习记录<textarea value={data.checkins.find(c=>c.trackId===track.id&&c.date===today)?.note||""} onChange={e=>patch(d=>({...d,checkins:d.checkins.map(c=>c.trackId===track.id&&c.date===today?{...c,note:e.target.value,updatedAt:Date.now()}:c)}))} placeholder={checked(track.id)?"写下今天实际学了什么…":"打卡后可以记录实际学习内容"}/></label></div>
+      </article>)}</div>
+    </section>}
+
+    {tab==="goals"&&<section>
+      <div className="growth-section-head"><div><span className="eyebrow">LONG-TERM DREAMS</span><h2>想抵达的地方，一件件写下来</h2></div><p>目标可以直接点击文字编辑，完成时轻轻勾选。</p></div>
+      <form className="goal-form" onSubmit={addGoal}><select value={goalKind} onChange={e=>setGoalKind(e.target.value as Goal["kind"])}><option>证书</option><option>副业</option><option>技能</option></select><input value={goalText} onChange={e=>setGoalText(e.target.value)} placeholder="添加一个长期目标…" /><button>＋ 添加目标</button></form>
+      <div className="goal-columns">{(["证书","副业","技能"] as Goal["kind"][]).map(kind=><section className="goal-column" key={kind}><header><i>{kind==="证书"?"♢":kind==="副业"?"♡":"✦"}</i><div><h3>{kind==="证书"?"想考取的证":kind==="副业"?"想做的副业":"想拓展的技能"}</h3><small>{data.goals.filter(g=>g.kind===kind&&g.done).length}/{data.goals.filter(g=>g.kind===kind).length} 完成</small></div></header>{data.goals.filter(g=>g.kind===kind).map(goal=><div className="goal-row" key={goal.id}><label><input type="checkbox" checked={goal.done} onChange={()=>patch(d=>({...d,goals:d.goals.map(g=>g.id===goal.id?{...g,done:!g.done,updatedAt:Date.now()}:g)}))}/><i></i></label><input className={goal.done?"strike":""} value={goal.text} onChange={e=>patch(d=>({...d,goals:d.goals.map(g=>g.id===goal.id?{...g,text:e.target.value,updatedAt:Date.now()}:g)}))}/><button onClick={()=>setDeleteGoal(goal.id)}>×</button></div>)}{!data.goals.some(g=>g.kind===kind)&&<p className="goal-empty">还没有写下目标</p>}</section>)}</div>
+    </section>}
+    {deleteGoal&&<Modal title="删除这个长期目标吗？" onClose={()=>setDeleteGoal(null)}><p className="modal-copy">这条目标会从清单中移除，小熊再帮你确认一次。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteGoal(null)}>先保留</button><button className="danger" onClick={()=>{patch(d=>({...d,goals:d.goals.filter(g=>g.id!==deleteGoal)}));setDeleteGoal(null)}}>确认删除</button></div></Modal>}
+  </div>;
 }
 
 function EventEditor({ item, date, data, patch, close }: { item: EventItem|null; date:string; data:WorkbenchData; patch:any; close:()=>void }) {

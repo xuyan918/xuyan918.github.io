@@ -9,15 +9,15 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, statusBarStyle: "default", title: "小熊工作台" },
   openGraph: {
     title: "小熊工作台",
-    description: "认真生活，也要拥抱自己",
+    description: "认真生活，也在认真成长",
     type: "website",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "小熊工作台" }],
+    images: [{ url: "/og-v2.png", width: 1200, height: 630, alt: "小熊工作台成长路径" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "小熊工作台",
-    description: "认真生活，也要拥抱自己",
-    images: ["/og.png"],
+    description: "认真生活，也在认真成长",
+    images: ["/og-v2.png"],
   },
 };
 

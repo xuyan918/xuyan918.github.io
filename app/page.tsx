@@ -12,6 +12,11 @@ type Skill = { id: string; name: string; icon: string; progress: ProgressState; 
 type LearningTrack = { id: string; name: string; icon: string; subtitle: string; plan: string[]; today: string[]; material: string; updatedAt: number };
 type Checkin = { id: string; trackId: string; date: string; note: string; updatedAt: number };
 type Goal = { id: string; kind: "证书" | "副业" | "技能"; text: string; done: boolean; updatedAt: number };
+type PeriodRecord = { id: string; start: string; end: string; updatedAt: number };
+type WorkoutPlan = { id: string; weekday: number; title: string; intensity: "轻柔" | "适中" | "较高"; updatedAt: number };
+type HealthLog = { id: string; date: string; weight?: number; trained: boolean; workout?: string; foodNote: string; calories?: number; updatedAt: number };
+type Recipe = { id: string; meal: "早餐" | "午餐" | "晚餐"; name: string; ingredients: string; calories: number; custom?: boolean; updatedAt: number };
+type HealthSettings = { privacy: boolean; cycleLength: number; periodLength: number; updatedAt: number };
 type WorkbenchData = {
   version: 1;
   exportedAt?: number;
@@ -23,6 +28,11 @@ type WorkbenchData = {
   learningTracks: LearningTrack[];
   checkins: Checkin[];
   goals: Goal[];
+  periods: PeriodRecord[];
+  workoutPlans: WorkoutPlan[];
+  healthLogs: HealthLog[];
+  recipes: Recipe[];
+  healthSettings: HealthSettings;
 };
 
 const STORAGE_KEY = "bear-workbench-v1";
@@ -34,6 +44,21 @@ const weekday = (date: string) => ["周日", "周一", "周二", "周三", "周�
 const displayDate = (date: string) => {
   const d = new Date(`${date}T12:00:00`);
   return `${d.getMonth() + 1}月${d.getDate()}日`;
+};
+const dateDiff = (from:string,to:string) => Math.floor((new Date(`${to}T12:00:00`).getTime()-new Date(`${from}T12:00:00`).getTime())/86400000);
+const addDays = (date:string,days:number) => { const d=new Date(`${date}T12:00:00`);d.setDate(d.getDate()+days);return dayKey(d); };
+const cycleInfo = (data:WorkbenchData,date=todayKey()) => {
+  const sorted=[...data.periods].sort((a,b)=>b.start.localeCompare(a.start));
+  const latest=sorted[0];
+  const cycle=data.healthSettings.cycleLength||28;
+  const duration=data.healthSettings.periodLength||5;
+  if(!latest)return {phase:"未记录",day:0,nextStart:"",nextEnd:"",cycle,duration};
+  let day=dateDiff(latest.start,date)+1;
+  while(day>cycle)day-=cycle;
+  while(day<1)day+=cycle;
+  const phase=day<=duration?"月经期":day<=Math.max(duration+1,13)?"卵泡期":day<=16?"排卵期":"黄体期";
+  const nextStart=addDays(latest.start,cycle);
+  return {phase,day,nextStart,nextEnd:addDays(nextStart,duration-1),cycle,duration};
 };
 
 const categories: Category[] = [
@@ -75,6 +100,35 @@ const phaseTwoDefaults = (now = Date.now()) => ({
   ],
 });
 
+const phaseThreeDefaults = (now = Date.now()) => {
+  const lastStart = new Date();
+  lastStart.setDate(lastStart.getDate() - 18);
+  const lastEnd = new Date(lastStart);
+  lastEnd.setDate(lastEnd.getDate() + 5);
+  return {
+    periods: [{ id:uid(), start:dayKey(lastStart), end:dayKey(lastEnd), updatedAt:now }],
+    workoutPlans: [
+      {id:"w1",weekday:1,title:"普拉提 · 核心稳定",intensity:"适中" as const,updatedAt:now},
+      {id:"w2",weekday:2,title:"快走 30 分钟",intensity:"适中" as const,updatedAt:now},
+      {id:"w3",weekday:3,title:"普拉提 · 全身塑形",intensity:"适中" as const,updatedAt:now},
+      {id:"w4",weekday:4,title:"拉伸与肩颈放松",intensity:"轻柔" as const,updatedAt:now},
+      {id:"w5",weekday:5,title:"普拉提 · 下肢力量",intensity:"适中" as const,updatedAt:now},
+      {id:"w6",weekday:6,title:"户外散步或轻徒步",intensity:"适中" as const,updatedAt:now},
+      {id:"w0",weekday:0,title:"休息 · 睡个好觉",intensity:"轻柔" as const,updatedAt:now},
+    ],
+    healthLogs: [] as HealthLog[],
+    recipes: [
+      {id:"r1",meal:"早餐" as const,name:"燕麦酸奶碗",ingredients:"燕麦、无糖酸奶、蓝莓、坚果",calories:360,updatedAt:now},
+      {id:"r2",meal:"早餐" as const,name:"鸡蛋牛油果吐司",ingredients:"全麦吐司、鸡蛋、牛油果",calories:420,updatedAt:now},
+      {id:"r3",meal:"午餐" as const,name:"鸡胸肉彩蔬沙拉",ingredients:"鸡胸肉、生菜、番茄、玉米",calories:480,updatedAt:now},
+      {id:"r4",meal:"午餐" as const,name:"杂粮饭时蔬碗",ingredients:"杂粮饭、西兰花、菌菇、豆腐",calories:520,updatedAt:now},
+      {id:"r5",meal:"晚餐" as const,name:"番茄虾仁豆腐汤",ingredients:"番茄、虾仁、豆腐、青菜",calories:390,updatedAt:now},
+      {id:"r6",meal:"晚餐" as const,name:"南瓜鸡肉暖胃粥",ingredients:"南瓜、鸡肉、大米、小米",calories:430,updatedAt:now},
+    ],
+    healthSettings:{privacy:false,cycleLength:28,periodLength:5,updatedAt:now},
+  };
+};
+
 const seedData = (): WorkbenchData => {
   const today = todayKey();
   const tomorrow = new Date();
@@ -84,6 +138,7 @@ const seedData = (): WorkbenchData => {
     version: 1,
     categories,
     ...phaseTwoDefaults(now),
+    ...phaseThreeDefaults(now),
     events: [
       { id: uid(), date: today, start: "09:30", end: "10:30", title: "整理本周 RPA 任务", categoryId: "work", updatedAt: now },
       { id: uid(), date: today, start: "18:30", end: "19:30", title: "普拉提课程", categoryId: "sport", updatedAt: now },
@@ -129,12 +184,18 @@ function useWorkbench() {
       if (saved) {
         const parsed = JSON.parse(saved);
         const defaults = phaseTwoDefaults();
+        const healthDefaults = phaseThreeDefaults();
         setData({
           ...parsed,
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
           learningTracks: Array.isArray(parsed.learningTracks) ? parsed.learningTracks : defaults.learningTracks,
           checkins: Array.isArray(parsed.checkins) ? parsed.checkins : defaults.checkins,
           goals: Array.isArray(parsed.goals) ? parsed.goals : defaults.goals,
+          periods: Array.isArray(parsed.periods) ? parsed.periods : healthDefaults.periods,
+          workoutPlans: Array.isArray(parsed.workoutPlans) ? parsed.workoutPlans : healthDefaults.workoutPlans,
+          healthLogs: Array.isArray(parsed.healthLogs) ? parsed.healthLogs : healthDefaults.healthLogs,
+          recipes: Array.isArray(parsed.recipes) ? parsed.recipes : healthDefaults.recipes,
+          healthSettings: parsed.healthSettings || healthDefaults.healthSettings,
         });
       } else setData(seedData());
     } catch {
@@ -230,12 +291,18 @@ export default function Home() {
         const parsed = JSON.parse(String(reader.result));
         if (parsed.version !== 1 || !Array.isArray(parsed.events) || !Array.isArray(parsed.todos) || !Array.isArray(parsed.memos)) throw new Error();
         const defaults = phaseTwoDefaults();
+        const healthDefaults = phaseThreeDefaults();
         setPendingImport({
           ...parsed,
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
           learningTracks: Array.isArray(parsed.learningTracks) ? parsed.learningTracks : defaults.learningTracks,
           checkins: Array.isArray(parsed.checkins) ? parsed.checkins : defaults.checkins,
           goals: Array.isArray(parsed.goals) ? parsed.goals : defaults.goals,
+          periods: Array.isArray(parsed.periods) ? parsed.periods : healthDefaults.periods,
+          workoutPlans: Array.isArray(parsed.workoutPlans) ? parsed.workoutPlans : healthDefaults.workoutPlans,
+          healthLogs: Array.isArray(parsed.healthLogs) ? parsed.healthLogs : healthDefaults.healthLogs,
+          recipes: Array.isArray(parsed.recipes) ? parsed.recipes : healthDefaults.recipes,
+          healthSettings: parsed.healthSettings || healthDefaults.healthSettings,
         });
         setImportMode("merge");
       } catch { alert("这个文件不是有效的小熊工作台数据。"); }
@@ -265,6 +332,11 @@ export default function Home() {
         learningTracks: merge(current.learningTracks, pendingImport.learningTracks),
         checkins: merge(current.checkins, pendingImport.checkins),
         goals: merge(current.goals, pendingImport.goals),
+        periods: merge(current.periods, pendingImport.periods),
+        workoutPlans: merge(current.workoutPlans, pendingImport.workoutPlans),
+        healthLogs: merge(current.healthLogs, pendingImport.healthLogs),
+        recipes: merge(current.recipes, pendingImport.recipes),
+        healthSettings: pendingImport.healthSettings.updatedAt > current.healthSettings.updatedAt ? pendingImport.healthSettings : current.healthSettings,
       };
     });
     setPendingImport(null); setImportMode(null);
@@ -274,7 +346,7 @@ export default function Home() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand"><img src="/bears/app-bear.jpg" alt="" /><div><strong>小熊工作台</strong><span>认真生活，也要拥抱自己</span></div></div>
-        <nav>{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span>{["health","finance","jobs","travel"].includes(n.id) && <em>规划中</em>}</button>)}</nav>
+        <nav>{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span>{["finance","jobs","travel"].includes(n.id) && <em>规划中</em>}</button>)}</nav>
         <div className="sync-box"><span>✦ 数据只在本机保存</span><button onClick={exportJSON}>导出 JSON</button><button className="secondary" onClick={() => fileRef.current?.click()}>导入 JSON</button></div>
       </aside>
 
@@ -282,8 +354,9 @@ export default function Home() {
         {view === "home" && <Dashboard data={data} go={go} toggleTodo={toggleTodo} />}
         {view === "calendar" && <Calendar data={data} dates={dates} selectedDate={selectedDate} setSelectedDate={setSelectedDate} category={category} toggleTodo={toggleTodo} move={move} onAdd={() => setEventModal("new")} onEdit={setEventModal} onDelete={setDeleteTarget} patch={patch} />}
         {view === "growth" && <Growth data={data} patch={patch} />}
+        {view === "health" && <Health data={data} patch={patch} />}
         {view === "memos" && <Memos data={data} go={go} toggleTodo={toggleTodo} move={move} onAdd={() => setMemoModal(true)} onDelete={setDeleteTarget} patch={patch} />}
-        {!["home","calendar","growth","memos"].includes(view) && <ComingSoon view={view} />}
+        {!["home","calendar","growth","health","memos"].includes(view) && <ComingSoon view={view} />}
       </main>
 
       <nav className="mobile-nav">{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span></button>)}</nav>
@@ -304,6 +377,7 @@ function Dashboard({ data, go, toggleTodo }: { data: WorkbenchData; go: (v: View
   const todays = data.todos.filter((t) => t.date === today);
   const todayStudy = data.checkins.filter((c) => c.date === today);
   const careerDone = data.skills.some((s) => s.lastCheckin === today);
+  const fitnessDone = data.healthLogs.some((l) => l.date === today && l.trained);
   const latest = [...data.memos].sort((a, b) => b.createdAt - a.createdAt).slice(0, 3);
   const greeting = greetings[Math.floor((d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate()) % greetings.length)];
   return <div className="page dashboard">
@@ -313,7 +387,7 @@ function Dashboard({ data, go, toggleTodo }: { data: WorkbenchData; go: (v: View
     <section className="overview-grid">
       <button className="overview-card pink" onClick={() => go("calendar", today)}><div className="card-title"><span>今日待办</span><i>✓</i></div><strong>{todays.filter(t=>t.done).length}<small> / {todays.length}</small></strong><div className="progress"><i style={{width: `${todays.length ? todays.filter(t=>t.done).length/todays.length*100 : 0}%`}} /></div><p>{todays.length ? `完成 ${todays.filter(t=>t.done).length} 件啦，继续稳稳前进` : "今天还没有待办，给自己一点自由"}</p></button>
       <button className="overview-card cream" onClick={() => go("memos")}><div className="card-title"><span>临时备忘</span><i>✎</i></div>{latest.length ? <ul>{latest.map(m=><li key={m.id}>• {m.text}</li>)}</ul> : <p>还没有小纸条</p>}<span className="card-link">打开备忘 →</span></button>
-      <div className="overview-card lilac"><div className="card-title"><span>今日打卡</span><i>✦</i></div><div className="checkin-row">{[["学习",todayStudy.length ? `${todayStudy.length} 项完成` : "等待打卡",todayStudy.length>0],["健身","阶段三开放",false],["职业",careerDone ? "技能已复盘" : "技能树",careerDone]].map(([a,b,c])=><button key={String(a)} className={c ? "done" : ""} onClick={()=>a!=="健身"&&go("growth")}><i>{c ? "✓" : ""}</i><span><b>{a}</b><small>{b}</small></span></button>)}</div></div>
+      <div className="overview-card lilac"><div className="card-title"><span>今日打卡</span><i>✦</i></div><div className="checkin-row">{[["学习",todayStudy.length ? `${todayStudy.length} 项完成` : "等待打卡",todayStudy.length>0,"growth"],["健身",fitnessDone?"训练已完成":"等待打卡",fitnessDone,"health"],["职业",careerDone ? "技能已复盘" : "技能树",careerDone,"growth"]].map(([a,b,c,target])=><button key={String(a)} className={c ? "done" : ""} onClick={()=>go(target as View)}><i>{c ? "✓" : ""}</i><span><b>{a}</b><small>{b}</small></span></button>)}</div></div>
     </section>
     <section className="today-panel"><div className="panel-head"><div><span className="eyebrow">TODAY&apos;S PLAN</span><h2>今天的小计划</h2></div><button onClick={() => go("calendar", today)}>＋ 添加待办</button></div>{todays.length ? <div className="dashboard-todos">{todays.sort((a,b)=>a.order-b.order).map(t=><label key={t.id}><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)} /><i></i><span className={t.done?"strike":""}>{t.text}</span><small>{t.done ? "已完成" : "待完成"}</small></label>)}</div> : <Empty text="今天还没有安排，先喝杯水吧。" />}</section>
   </div>;
@@ -322,6 +396,12 @@ function Dashboard({ data, go, toggleTodo }: { data: WorkbenchData; go: (v: View
 function Calendar({ data, dates, selectedDate, setSelectedDate, category, toggleTodo, move, onAdd, onEdit, onDelete, patch }: any) {
   const [todoText, setTodoText] = useState("");
   const [quickText, setQuickText] = useState("");
+  const periodMark=(date:string)=>{
+    if(data.healthSettings.privacy)return "";
+    if(data.periods.some((p:PeriodRecord)=>date>=p.start&&date<=p.end))return "actual";
+    const info=cycleInfo(data,date);
+    return date>=info.nextStart&&date<=info.nextEnd?"forecast":"";
+  };
   const addTodo = (e: FormEvent) => { e.preventDefault(); if (!todoText.trim()) return; patch((d: WorkbenchData)=>({...d,todos:[...d.todos,{id:uid(),date:selectedDate,text:todoText.trim(),done:false,order:d.todos.filter(t=>t.date===selectedDate).length,updatedAt:Date.now()}]})); setTodoText(""); };
   const parseQuick = () => {
     const text = quickText.trim(); if (!text) return;
@@ -336,9 +416,10 @@ function Calendar({ data, dates, selectedDate, setSelectedDate, category, toggle
   return <div className="page calendar-page">
     <header className="page-head"><div><span className="eyebrow">MY CALENDAR</span><h1>日历与日程</h1><p>按自己的节奏，把每一天过得有条不紊。</p></div><button onClick={onAdd}>＋ 新建日程</button></header>
     <div className="quick-parse"><span>✦</span><input value={quickText} onChange={e=>setQuickText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&parseQuick()} placeholder="试试说：明天下午 3 点准备面试资料" /><button onClick={parseQuick}>帮我记下</button></div>
-    <div className="calendar-layout"><aside className="date-rail">{dates.map((date:string)=><button key={date} onClick={()=>setSelectedDate(date)} className={`${selectedDate===date?"selected":""} ${date===todayKey()?"today":""}`}><small>{weekday(date)}</small><strong>{new Date(`${date}T12:00:00`).getDate()}</strong><span>{date===todayKey()?"今天":`${new Date(`${date}T12:00:00`).getMonth()+1}月`}</span></button>)}</aside>
+    <div className="calendar-layout"><aside className="date-rail">{dates.map((date:string)=><button key={date} onClick={()=>setSelectedDate(date)} className={`${selectedDate===date?"selected":""} ${date===todayKey()?"today":""}`}><small>{weekday(date)}</small><strong>{new Date(`${date}T12:00:00`).getDate()}</strong><span>{date===todayKey()?"今天":`${new Date(`${date}T12:00:00`).getMonth()+1}月`}</span>{periodMark(date)&&<em className={periodMark(date)}>✿</em>}{data.healthLogs.some((l:HealthLog)=>l.date===date&&l.trained)&&<em className="trained">✓</em>}</button>)}</aside>
     <section className="day-detail"><div className="day-heading"><div><span>{displayDate(selectedDate)} · {weekday(selectedDate)}</span><h2>{selectedDate===todayKey()?"今天，温柔地完成这些事":"这一天的安排"}</h2><div className="calendar-checkins">{data.checkins.filter((c:Checkin)=>c.date===selectedDate).map((c:Checkin)=><b key={c.id}>✦ {data.learningTracks.find((t:LearningTrack)=>t.id===c.trackId)?.name}</b>)}{data.skills.some((s:Skill)=>s.lastCheckin===selectedDate)&&<b>⌁ 职业学习</b>}</div></div><button className="secondary" onClick={onAdd}>＋ 添加日程</button></div>
       <div className="event-list">{data.events.filter((e:EventItem)=>e.date===selectedDate).sort((a:EventItem,b:EventItem)=>a.start.localeCompare(b.start)).map((e:EventItem)=><article className="event-card" key={e.id} style={{"--event":category(e.categoryId).color} as React.CSSProperties}><time>{e.start}<small>{e.end}</small></time><i></i><div><span>{category(e.categoryId).name}</span><button onClick={()=>onEdit(e)}>{e.title}</button></div><button className="more" onClick={()=>onDelete({kind:"event",id:e.id})} aria-label="删除日程">×</button></article>)}{!data.events.some((e:EventItem)=>e.date===selectedDate)&&<Empty text="这一天还空空的，留给期待也很好。" />}</div>
+      {(periodMark(selectedDate)||data.healthLogs.some((l:HealthLog)=>l.date===selectedDate&&l.trained))&&<div className="health-day-strip">{periodMark(selectedDate)&&<span>✿ {periodMark(selectedDate)==="actual"?"经期记录":"预测经期"}</span>}{data.healthLogs.some((l:HealthLog)=>l.date===selectedDate&&l.trained)&&<span>✓ 今日训练已打卡</span>}</div>}
       <section className="todo-section"><div className="todo-head"><h3>当天 To-do</h3><span>{data.todos.filter((t:Todo)=>t.date===selectedDate&&t.done).length} / {data.todos.filter((t:Todo)=>t.date===selectedDate).length} 完成</span></div>
       <div className="todo-list">{data.todos.filter((t:Todo)=>t.date===selectedDate).sort((a:Todo,b:Todo)=>a.order-b.order).map((t:Todo)=><div className="todo-row" key={t.id}><label><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)} /><i></i><span className={t.done?"strike":""}>{t.text}</span></label><div><button onClick={()=>move("todo",t.id,-1)} aria-label="上移">↑</button><button onClick={()=>move("todo",t.id,1)} aria-label="下移">↓</button><button onClick={()=>onDelete({kind:"todo",id:t.id})} aria-label="删除">×</button></div></div>)}</div>
       <form className="add-todo" onSubmit={addTodo}><input value={todoText} onChange={e=>setTodoText(e.target.value)} placeholder="添加一件想完成的小事…" /><button>添加</button></form></section>
@@ -355,6 +436,92 @@ function Memos({ data, go, toggleTodo, move, onAdd, onDelete, patch }: any) {
   <div className="memo-list">{[...data.memos].sort((a,b)=>a.order-b.order).map((m:Memo)=><article key={m.id}>{editing===m.id?<input autoFocus value={text} onChange={e=>setText(e.target.value)} onBlur={()=>save(m.id)} onKeyDown={e=>e.key==="Enter"&&save(m.id)}/>:<button className="memo-text" onClick={()=>{setEditing(m.id);setText(m.text)}}>{m.text}</button>}<footer><time>{new Date(m.createdAt).toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</time><div><button onClick={()=>move("memo",m.id,-1)}>↑</button><button onClick={()=>move("memo",m.id,1)}>↓</button><button onClick={()=>onDelete({kind:"memo",id:m.id})}>删除</button></div></footer></article>)}{!data.memos.length&&<Empty text="灵感还没落下来，小熊在这里等你。" />}</div></section>
   <section className="paper-panel todo-summary"><div className="panel-head"><div><h2>未完成 To-do</h2><p>来自日历的同一份任务清单</p></div><span>{undone.length} 项</span></div>{undone.length?<div className="summary-list">{undone.map((t:Todo)=><label key={t.id}><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)}/><i></i><button onClick={()=>go("calendar",t.date)}><span>{t.text}</span><small>{displayDate(t.date)} · {weekday(t.date)}</small></button></label>)}</div>:<Empty text="待办都完成啦，给今天的你一朵花。" />}</section></div>
   <button className="bear-fab inner" onClick={onAdd}><img src="/bears/app-bear.jpg" alt="" /><span>记一下</span></button></div>;
+}
+
+function Health({ data, patch }: { data:WorkbenchData; patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {
+  const [tab,setTab]=useState<"cycle"|"fitness"|"food"|"care">("cycle");
+  const [periodForm,setPeriodForm]=useState({start:todayKey(),end:todayKey()});
+  const [showPeriod,setShowPeriod]=useState(false);
+  const [deletePeriod,setDeletePeriod]=useState<string|null>(null);
+  const [meal,setMeal]=useState<Recipe["meal"]>("早餐");
+  const [recipeForm,setRecipeForm]=useState({name:"",ingredients:"",calories:""});
+  const [showRecipe,setShowRecipe]=useState(false);
+  const [deleteRecipe,setDeleteRecipe]=useState<string|null>(null);
+  const [logForm,setLogForm]=useState({weight:"",foodNote:"",workout:""});
+  const [weather,setWeather]=useState<{temperature:number;humidity:number;apparent:number;code:number}|null>(null);
+  const [weatherError,setWeatherError]=useState(false);
+  const today=todayKey();
+  const info=cycleInfo(data);
+  const todayLog=data.healthLogs.find(l=>l.date===today);
+  const sortedPeriods=[...data.periods].sort((a,b)=>b.start.localeCompare(a.start));
+  const cycleGaps=sortedPeriods.slice(0,-1).map((p,i)=>dateDiff(sortedPeriods[i+1].start,p.start)).filter(x=>x>15&&x<60);
+  const avgCycle=cycleGaps.length?Math.round(cycleGaps.reduce((a,b)=>a+b,0)/cycleGaps.length):data.healthSettings.cycleLength;
+  const durations=sortedPeriods.map(p=>dateDiff(p.start,p.end)+1).filter(x=>x>0&&x<15);
+  const avgDuration=durations.length?Math.round(durations.reduce((a,b)=>a+b,0)/durations.length):data.healthSettings.periodLength;
+  const weekdays=["周日","周一","周二","周三","周四","周五","周六"];
+  const phaseAdvice:Record<string,{title:string;body:string;drink:string;meal:string;sport:string;wear:string}>={
+    "月经期":{title:"放慢一点，温柔照顾身体",body:"以舒缓、保暖和充分休息为主，如明显不适请停止训练。",drink:"温热姜枣茶或桂圆红枣水，少量饮用并留意个人体质。",meal:"选择温热易消化的主食、优质蛋白与深色蔬菜。",sport:"散步、呼吸练习或轻柔瑜伽，避免追求强度。",wear:"柔软宽松下装，加一件可随时穿脱的薄外套。"},
+    "卵泡期":{title:"能量回升，适合尝试新挑战",body:"身体状态通常逐渐回升，可循序增加力量与心肺训练。",drink:"清爽柠檬水或淡绿茶，注意日常补水。",meal:"增加优质蛋白、全谷物和彩色蔬果。",sport:"普拉提、力量训练或间歇快走，可适度提高强度。",wear:"轻盈运动休闲风，选择透气面料和明快配色。"},
+    "排卵期":{title:"保持节奏，也留意身体反馈",body:"状态可能较活跃，但训练时仍要充分热身并关注关节稳定。",drink:"无糖花果茶或温水，户外活动及时补水。",meal:"清淡均衡，搭配鱼虾、豆制品和新鲜蔬菜。",sport:"中等强度力量或普拉提，动作质量优先。",wear:"利落轻运动风，准备一件防晒薄衫。"},
+    "黄体期":{title:"稳住状态，减少内耗",body:"可能出现疲倦或食欲变化，规律睡眠和稳定饮食更重要。",drink:"茯苓陈皮茶或温热大麦茶，避免过甜。",meal:"增加复合碳水、富镁食物与高纤维蔬菜。",sport:"中低强度普拉提、快走与拉伸，按感受降强度。",wear:"柔和分层穿搭，腰腹选择不紧绷的版型。"},
+    "未记录":{title:"先记录一次周期，建议会更贴合",body:"添加最近一次经期开始和结束日期，即可获得阶段提示。",drink:"日常温水，少量多次。",meal:"规律三餐，保证蛋白质与蔬菜。",sport:"从散步和基础拉伸开始。",wear:"根据体感选择舒适、透气的衣物。"},
+  };
+  const advice=phaseAdvice[info.phase];
+  const estimateCalories=(text:string)=>{
+    const table:[RegExp,number][]=[[/米饭|饭/,230],[/面|粉/,350],[/鸡胸|鸡肉/,220],[/牛肉/,280],[/猪肉|水煮肉片/,420],[/奶茶/,450],[/咖啡/,120],[/酸奶/,150],[/鸡蛋/,80],[/水果|苹果|香蕉/,120],[/沙拉/,300],[/火锅/,800]];
+    return table.reduce((sum,[key,value])=>sum+(key.test(text)?value:0),0);
+  };
+  useEffect(()=>{
+    if(tab!=="care"||weather)return;
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=30.2741&longitude=120.1551&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code&timezone=Asia%2FShanghai")
+      .then(r=>{if(!r.ok)throw new Error();return r.json()})
+      .then(j=>setWeather({temperature:j.current.temperature_2m,humidity:j.current.relative_humidity_2m,apparent:j.current.apparent_temperature,code:j.current.weather_code}))
+      .catch(()=>setWeatherError(true));
+  },[tab,weather]);
+  const savePeriod=(e:FormEvent)=>{
+    e.preventDefault();if(periodForm.end<periodForm.start)return;
+    const record={id:uid(),...periodForm,updatedAt:Date.now()};
+    const nextPeriods=[...data.periods,record].sort((a,b)=>b.start.localeCompare(a.start));
+    const gaps=nextPeriods.slice(0,-1).map((p,i)=>dateDiff(nextPeriods[i+1].start,p.start)).filter(x=>x>15&&x<60);
+    const lens=nextPeriods.map(p=>dateDiff(p.start,p.end)+1).filter(x=>x>0&&x<15);
+    patch(d=>({...d,periods:nextPeriods,healthSettings:{...d.healthSettings,cycleLength:gaps.length?Math.round(gaps.reduce((a,b)=>a+b,0)/gaps.length):d.healthSettings.cycleLength,periodLength:lens.length?Math.round(lens.reduce((a,b)=>a+b,0)/lens.length):d.healthSettings.periodLength,updatedAt:Date.now()}}));setShowPeriod(false);
+  };
+  const saveLog=()=>{
+    const calories=estimateCalories(logForm.foodNote);
+    patch(d=>({...d,healthLogs:d.healthLogs.some(l=>l.date===today)?d.healthLogs.map(l=>l.date===today?{...l,weight:logForm.weight?Number(logForm.weight):l.weight,foodNote:logForm.foodNote||l.foodNote,workout:logForm.workout||l.workout,calories:calories||l.calories,updatedAt:Date.now()}:l):[...d.healthLogs,{id:uid(),date:today,weight:logForm.weight?Number(logForm.weight):undefined,trained:false,workout:logForm.workout,foodNote:logForm.foodNote,calories:calories||undefined,updatedAt:Date.now()}]}));setLogForm({weight:"",foodNote:"",workout:""});
+  };
+  const addRecipe=(e:FormEvent)=>{e.preventDefault();if(!recipeForm.name.trim())return;patch(d=>({...d,recipes:[...d.recipes,{id:uid(),meal,name:recipeForm.name.trim(),ingredients:recipeForm.ingredients.trim(),calories:Number(recipeForm.calories)||0,custom:true,updatedAt:Date.now()}]}));setRecipeForm({name:"",ingredients:"",calories:""});setShowRecipe(false)};
+  const solarTerms=["小寒","立春","惊蛰","清明","立夏","芒种","小暑","立秋","白露","寒露","立冬","大雪"];
+  const currentTerm=solarTerms[new Date().getMonth()];
+  const weatherText=(code:number)=>code<2?"晴朗":code<4?"多云":code<60?"阴天":code<80?"有雨":"强对流";
+  return <div className="page health-page">
+    <header className="health-hero"><div><span className="eyebrow">MY WELLNESS</span><h1>听见身体的小小声音</h1><p>记录周期、运动与饮食，让照顾自己成为轻松的日常。</p><div className="phase-pill"><i>✿</i><span>{data.healthSettings.privacy?"隐私模式已开启":`周期第 ${info.day||"–"} 天 · ${info.phase}`}</span></div></div><img src="/bears/bear-ribbon.jpg" alt="戴蝴蝶结的水彩小熊" /></header>
+    <nav className="growth-tabs health-tabs"><button className={tab==="cycle"?"active":""} onClick={()=>setTab("cycle")}>周期记录</button><button className={tab==="fitness"?"active":""} onClick={()=>setTab("fitness")}>健身计划</button><button className={tab==="food"?"active":""} onClick={()=>setTab("food")}>饮食与监测</button><button className={tab==="care"?"active":""} onClick={()=>setTab("care")}>杭州保养建议</button></nav>
+    {tab==="cycle"&&<section className="health-grid">
+      <article className="cycle-card feature"><div className="health-card-head"><div><span className="eyebrow">CYCLE OVERVIEW</span><h2>{data.healthSettings.privacy?"周期信息已隐藏":info.phase}</h2></div><button className={data.healthSettings.privacy?"private active":"private"} onClick={()=>patch(d=>({...d,healthSettings:{...d.healthSettings,privacy:!d.healthSettings.privacy,updatedAt:Date.now()}}))}>{data.healthSettings.privacy?"◉ 显示周期":"○ 隐藏周期"}</button></div>{data.healthSettings.privacy?<div className="privacy-cover"><span>♡</span><h3>小秘密被好好收起来了</h3><p>日历标注和预测也已同时隐藏。</p></div>:<><div className="cycle-ring"><div><b>{info.day}</b><span>周期天数</span></div></div><div className="cycle-metrics"><span><b>{avgCycle} 天</b>平均周期</span><span><b>{avgDuration} 天</b>平均经期</span><span><b>{displayDate(info.nextStart)}</b>预计下次</span></div></>}</article>
+      <article className="cycle-card advice"><span className="eyebrow">TODAY&apos;S BODY NOTE</span><h2>{advice.title}</h2><p>{advice.body}</p><div className="phase-track">{["月经期","卵泡期","排卵期","黄体期"].map(x=><span className={x===info.phase?"active":""} key={x}>{x}</span>)}</div><small>周期预测仅用于日常记录，不替代医疗诊断。</small></article>
+      <article className="cycle-card records"><div className="health-card-head"><div><h2>经期记录</h2><p>记录越完整，预测越贴合你的节奏</p></div><button onClick={()=>setShowPeriod(true)}>＋ 添加记录</button></div><div className="period-list">{sortedPeriods.map(p=><div key={p.id}><i>✿</i><span><b>{displayDate(p.start)} — {displayDate(p.end)}</b><small>持续 {dateDiff(p.start,p.end)+1} 天</small></span><button onClick={()=>setDeletePeriod(p.id)}>×</button></div>)}</div></article>
+      {showPeriod&&<Modal title="添加经期记录" onClose={()=>setShowPeriod(false)}><form className="editor-form" onSubmit={savePeriod}><div className="two-col"><label>开始日期<input type="date" value={periodForm.start} onChange={e=>setPeriodForm({...periodForm,start:e.target.value})}/></label><label>结束日期<input type="date" min={periodForm.start} value={periodForm.end} onChange={e=>setPeriodForm({...periodForm,end:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowPeriod(false)}>取消</button><button>保存记录</button></div></form></Modal>}
+      {deletePeriod&&<Modal title="删除这次经期记录吗？" onClose={()=>setDeletePeriod(null)}><p className="modal-copy">删除后周期平均值和预测日期会重新计算。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeletePeriod(null)}>先保留</button><button className="danger" onClick={()=>{patch(d=>({...d,periods:d.periods.filter(p=>p.id!==deletePeriod)}));setDeletePeriod(null)}}>确认删除</button></div></Modal>}
+    </section>}
+    {tab==="fitness"&&<section>
+      <div className="growth-section-head"><div><span className="eyebrow">WEEKLY MOVEMENT</span><h2>本周健身计划</h2></div><p>当前阶段：{info.phase} · 建议以{info.phase==="卵泡期"?"中高":info.phase==="月经期"?"轻柔":"中低"}强度为主</p></div>
+      <div className="fitness-layout"><section className="week-plan">{[1,2,3,4,5,6,0].map(day=>{const plan=data.workoutPlans.find(p=>p.weekday===day)!;return <article key={day} className={day===new Date().getDay()?"today":""}><header><span>{weekdays[day]}</span>{day===new Date().getDay()&&<b>今天</b>}</header><input value={plan.title} onChange={e=>patch(d=>({...d,workoutPlans:d.workoutPlans.map(p=>p.id===plan.id?{...p,title:e.target.value,updatedAt:Date.now()}:p)}))}/><select value={plan.intensity} onChange={e=>patch(d=>({...d,workoutPlans:d.workoutPlans.map(p=>p.id===plan.id?{...p,intensity:e.target.value as WorkoutPlan["intensity"],updatedAt:Date.now()}:p)}))}><option>轻柔</option><option>适中</option><option>较高</option></select></article>})}</section>
+      <aside className="today-workout"><span className="eyebrow">TODAY</span><h2>{data.workoutPlans.find(p=>p.weekday===new Date().getDay())?.title}</h2><p>{advice.sport}</p><textarea value={logForm.workout} onChange={e=>setLogForm({...logForm,workout:e.target.value})} placeholder="补充今天实际训练内容…"/><button className={todayLog?.trained?"done":""} onClick={()=>patch(d=>({...d,healthLogs:todayLog?d.healthLogs.map(l=>l.id===todayLog.id?{...l,trained:!l.trained,workout:logForm.workout||l.workout,updatedAt:Date.now()}:l):[...d.healthLogs,{id:uid(),date:today,trained:true,workout:logForm.workout,foodNote:"",updatedAt:Date.now()}]}))}>{todayLog?.trained?"✓ 今日训练已完成":"完成今日训练"}</button></aside></div>
+    </section>}
+    {tab==="food"&&<section>
+      <div className="meal-tabs"><div>{(["早餐","午餐","晚餐"] as Recipe["meal"][]).map(x=><button className={meal===x?"active":""} key={x} onClick={()=>setMeal(x)}>{x}</button>)}</div><button onClick={()=>setShowRecipe(true)}>＋ 添加我的菜谱</button></div>
+      <div className="recipe-grid">{data.recipes.filter(r=>r.meal===meal).map(recipe=><article key={recipe.id}><span>{recipe.custom?"我的菜谱":meal}</span><h3>{recipe.name}</h3><p>{recipe.ingredients}</p><footer><b>约 {recipe.calories} kcal</b>{recipe.custom&&<button onClick={()=>setDeleteRecipe(recipe.id)}>删除</button>}</footer></article>)}</div>
+      <section className="daily-health-log"><div><span className="eyebrow">DAILY CHECK</span><h2>今日健康记录</h2><p>食物热量仅按关键词做粗略估算。</p></div><label>体重（kg）<input type="number" step=".1" value={logForm.weight} onChange={e=>setLogForm({...logForm,weight:e.target.value})} placeholder={todayLog?.weight?String(todayLog.weight):"选填"}/></label><label>饮食备注<input value={logForm.foodNote} onChange={e=>setLogForm({...logForm,foodNote:e.target.value})} placeholder={todayLog?.foodNote||"例如：米饭、鸡胸肉、酸奶"}/></label><div className="calorie-result"><b>{estimateCalories(logForm.foodNote)||todayLog?.calories||"–"}</b><span>估算 kcal</span></div><button onClick={saveLog}>保存今日记录</button></section>
+      {showRecipe&&<Modal title="添加我的菜谱" onClose={()=>setShowRecipe(false)}><form className="editor-form" onSubmit={addRecipe}><label>菜谱名称<input value={recipeForm.name} onChange={e=>setRecipeForm({...recipeForm,name:e.target.value})} required/></label><label>主要食材<input value={recipeForm.ingredients} onChange={e=>setRecipeForm({...recipeForm,ingredients:e.target.value})}/></label><label>粗略热量（kcal）<input type="number" value={recipeForm.calories} onChange={e=>setRecipeForm({...recipeForm,calories:e.target.value})}/></label><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowRecipe(false)}>取消</button><button>保存菜谱</button></div></form></Modal>}
+      {deleteRecipe&&<Modal title="删除这份自定义菜谱吗？" onClose={()=>setDeleteRecipe(null)}><p className="modal-copy">删除后会从你的菜谱清单中移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteRecipe(null)}>先保留</button><button className="danger" onClick={()=>{patch(d=>({...d,recipes:d.recipes.filter(r=>r.id!==deleteRecipe)}));setDeleteRecipe(null)}}>确认删除</button></div></Modal>}
+    </section>}
+    {tab==="care"&&<section>
+      <div className="weather-banner"><div><span className="eyebrow">HANGZHOU · {currentTerm}</span><h2>{weather?`${weatherText(weather.code)} · ${weather.temperature}°C`:"正在读取杭州天气…"}</h2><p>{weather?`体感 ${weather.apparent}°C · 湿度 ${weather.humidity}% · ${info.phase}`:weatherError?"暂时无法联网，以下按季节与周期提供离线建议。":"天气数据由 Open‑Meteo 提供，无需账号。"}</p></div><i>{weather&&weather.code>=50?"☂":"☼"}</i></div>
+      <div className="care-grid"><article><span>01 · 祛湿饮品</span><h3>{weather&&weather.humidity>75?"空气偏湿，适合清爽祛湿":"温和补水，照顾当下体感"}</h3><p>{advice.drink}</p></article><article><span>02 · 一日三餐</span><h3>顺应周期的轻盈搭配</h3><p>{advice.meal}</p></article><article><span>03 · 今日运动</span><h3>{weather&&weather.code>=50?"雨天优先室内":"按体感选择室内或户外"}</h3><p>{weather&&weather.code>=50?`今天更适合室内活动。${advice.sport}`:advice.sport}</p></article><article><span>04 · 穿搭灵感</span><h3>{weather?`${weather.apparent}°C 体感穿搭`:"杭州当季舒适穿搭"}</h3><p>{advice.wear}{weather&&weather.temperature>30?" 高温注意防晒、补水。":weather&&weather.temperature<12?" 气温偏低，注意腰腹和脚踝保暖。":""}</p></article></div>
+      <p className="health-disclaimer">健康与周期建议仅用于日常自我照顾，不用于诊断或治疗；若有持续不适或周期明显异常，请及时咨询医生。</p>
+    </section>}
+  </div>;
 }
 
 function Growth({ data, patch }: { data: WorkbenchData; patch: (fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {

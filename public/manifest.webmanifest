@@ -1,0 +1,14 @@
+{
+  "name": "小熊个人工作台",
+  "short_name": "小熊工作台",
+  "description": "离线优先的个人日程、待办与备忘工作台",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffaf8",
+  "theme_color": "#f5c6cd",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/bears/app-bear.jpg", "sizes": "1320x1320", "type": "image/jpeg", "purpose": "any" },
+    { "src": "/bears/app-bear.jpg", "sizes": "1320x1320", "type": "image/jpeg", "purpose": "maskable" }
+  ]
+}

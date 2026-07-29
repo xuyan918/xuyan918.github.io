@@ -24,6 +24,7 @@ type SavingsGoal = { id:string; name:string; target:number; saved:number; update
 type FinanceSettings = { monthlyIncome?:number; updatedAt:number };
 type JobStatus = "感兴趣" | "已投递" | "已面试" | "已拒绝";
 type JobListing = { id:string; company:string; title:string; salary:string; companySize:number; location:string; jd:string; url:string; source:string; publishedAt:string; status:JobStatus; statusUpdatedAt:number; updatedAt:number };
+type JobCriterion = { id:string; kind:"关键词"|"地点"|"最低公司人数"; value:string; updatedAt:number };
 type Destination = { id:string; place:string; country:string; visited:boolean; updatedAt:number };
 type ItineraryItem = { id:string; day:number; time:string; content:string };
 type PackingItem = { id:string; category:string; name:string; checked:boolean };
@@ -51,6 +52,7 @@ type WorkbenchData = {
   savingsGoals: SavingsGoal[];
   financeSettings: FinanceSettings;
   jobs: JobListing[];
+  jobCriteria: JobCriterion[];
   destinations: Destination[];
   travelPlans: TravelPlan[];
   packingTemplate: PackingItem[];
@@ -58,6 +60,7 @@ type WorkbenchData = {
 };
 
 const STORAGE_KEY = "bear-workbench-v1";
+const SALARY_CLEANUP_KEY = "bear-workbench-salary-cleaned-20260729";
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const todayKey = () => dayKey(new Date());
@@ -149,26 +152,12 @@ const PROMO_SPECIAL_DAYS:SpecialDay[]=[
   ...birthdayPromos.map((title,i)=>promoDay(`birthday-0918-${i}`,title,{recurrence:"yearly",month:9,monthDay:18})),
   promoDay("haidilao-0901","海底捞9月1日送30元代金券",{recurrence:"yearly",month:9,monthDay:1})
 ];
-const birthdayDay=(id:string,title:string,month:number,monthDay:number):SpecialDay=>({id:`birthday-${id}`,title,date:`2026-${String(month).padStart(2,"0")}-${String(monthDay).padStart(2,"0")}`,kind:"生日",calendar:"公历",reminderDays:3,recurrence:"yearly",month,monthDay,updatedAt:Date.now()});
-const lunarBirthday=(id:string,title:string,lunarDate:string,lunarMonth:number,lunarDay:number):SpecialDay=>({id:`birthday-${id}`,title,date:todayKey(),kind:"生日",calendar:"农历",lunarDate,lunarMonth,lunarDay,reminderDays:3,recurrence:"yearly",updatedAt:Date.now()});
-const BIRTHDAY_SPECIAL_DAYS:SpecialDay[]=[
-  birthdayDay("self","我的生日",9,18),birthdayDay("mom","妈妈的生日",12,28),birthdayDay("dad","爸爸的生日",6,30),
-  birthdayDay("yuebao","越宝的生日",10,31),birthdayDay("jiang-qingyang","蒋清扬的生日",12,31),birthdayDay("qin-shen","秦深的生日",2,1),
-  birthdayDay("liu-yang","刘洋的生日",2,8),birthdayDay("xiang-xiner","向芯儿的生日",2,15),birthdayDay("tian-yuyang","田雨阳的生日",4,2),
-  birthdayDay("liu-juanjuan","刘娟娟的生日",2,19),birthdayDay("xiao-wendi","肖文迪的生日",4,3),birthdayDay("li-wenhui","李文惠的生日",4,12),
-  birthdayDay("liu-dan","刘丹的生日",4,18),birthdayDay("deng-yi","邓祎的生日",5,4),birthdayDay("niu-zhulin","牛朱琳的生日",6,8),
-  birthdayDay("tang-zhi","唐志的生日",7,11),birthdayDay("li-yue","李玥的生日",7,22),birthdayDay("maiyatang","麦芽糖的生日",8,13),
-  birthdayDay("wang-seven","王seven的生日",8,18),birthdayDay("song-lihua","宋丽华的生日",8,19),birthdayDay("jiang-chenxu","姜晨旭的生日",10,20),
-  birthdayDay("li-shanshan","李珊珊的生日",11,1),birthdayDay("gu-yue","古悦的生日",11,18),birthdayDay("wang-xuan","王萱的生日",12,27),
-  lunarBirthday("sun-longxu","孙珑栩的生日","腊月十八",12,18),lunarBirthday("duizhang","队长的生日","九月初九（重阳节）",9,9),
-  lunarBirthday("gong-dongyang","巩冬旸的生日","五月初一",5,1),lunarBirthday("huihui","惠惠的生日","腊月初一",12,1)
-];
 const lunarParts=(date:string)=>{const parts=new Intl.DateTimeFormat("zh-CN-u-ca-chinese",{month:"numeric",day:"numeric"}).formatToParts(new Date(`${date}T12:00:00`));return {month:Number(parts.find(x=>x.type==="month")?.value),day:Number(parts.find(x=>x.type==="day")?.value)}};
 const occursOn=(item:SpecialDay,date:string)=>{const d=new Date(`${date}T12:00:00`);if(item.calendar==="农历"&&item.recurrence==="yearly"){const lunar=lunarParts(date);return lunar.month===item.lunarMonth&&lunar.day===item.lunarDay}if(item.recurrence==="weekly")return d.getDay()===item.weekday;if(item.recurrence==="monthly")return d.getDate()===item.monthDay;if(item.recurrence==="yearly")return d.getMonth()+1===item.month&&d.getDate()===item.monthDay;return item.date===date};
 const nextSpecialDate=(item:SpecialDay,from=todayKey())=>{if(!item.recurrence)return item.date;for(let i=0;i<370;i++){const date=addDays(from,i);if(occursOn(item,date))return date}return item.date};
 const specialDaysForDate=(items:SpecialDay[],date:string)=>items.filter(item=>occursOn(item,date));
 const specialRuleLabel=(item:SpecialDay)=>item.calendar==="农历"&&item.recurrence==="yearly"?`农历每年 ${item.lunarDate}`:item.recurrence==="weekly"?`每周${["日","一","二","三","四","五","六"][item.weekday||0]}`:item.recurrence==="monthly"?`每月 ${item.monthDay} 日`:item.recurrence==="yearly"?`每年 ${item.month} 月 ${item.monthDay} 日`:"单次提醒";
-const withKnownSpecials=(items:SpecialDay[])=>[...items.filter(x=>!x.id.startsWith("promo-")&&!x.id.startsWith("birthday-")),...PROMO_SPECIAL_DAYS,...BIRTHDAY_SPECIAL_DAYS];
+const withKnownSpecials=(items:SpecialDay[])=>[...items.filter(x=>!x.id.startsWith("promo-")&&!x.id.startsWith("birthday-")),...PROMO_SPECIAL_DAYS];
 const cycleInfo = (data:WorkbenchData,date=todayKey()) => {
   const sorted=[...data.periods].sort((a,b)=>b.start.localeCompare(a.start));
   const latest=sorted[0];
@@ -262,14 +251,27 @@ const phaseFourDefaults = (now=Date.now()) => ({
     {id:uid(),name:"普拉提运动服",price:399,purchased:false,updatedAt:now},
   ],
   savingsGoals:[{id:uid(),name:"安心储备金",target:30000,saved:8000,updatedAt:now}],
-  financeSettings:{monthlyIncome:6000,updatedAt:now},
+  financeSettings:{updatedAt:now},
 });
 
 const phaseFiveDefaults = (now=Date.now()) => ({
   jobs:[
     {id:"job-jiansheng",company:"浙江健盛集团",title:"RPA 工程师",salary:"8–12K · 13薪",companySize:1000,location:"杭州 · 萧山区",jd:"参与业务流程梳理与自动化开发，岗位关键词包含 RPA；适合继续积累企业级流程交付经验。",url:"https://mwenku.51job.com/hangzhou_jobs/202601/Python/",source:"前程无忧公开招聘页",publishedAt:"2026-07-29",status:"感兴趣" as JobStatus,statusUpdatedAt:now,updatedAt:now},
   ] as JobListing[],
+  jobCriteria:[
+    {id:"criterion-keyword",kind:"关键词" as const,value:"RPA / 影刀",updatedAt:now},
+    {id:"criterion-size",kind:"最低公司人数" as const,value:"100",updatedAt:now},
+    {id:"criterion-location",kind:"地点" as const,value:"杭州",updatedAt:now},
+  ] as JobCriterion[],
 });
+const withoutStoredSalary = (parsed:any, defaults:ReturnType<typeof phaseFourDefaults>, cleanup=true) => {
+  const settings = parsed.financeSettings || defaults.financeSettings;
+  const financeSettings = cleanup ? {updatedAt:Date.now()} : settings;
+  const entries = Array.isArray(parsed.financeEntries) ? parsed.financeEntries : defaults.financeEntries;
+  const wageIds = new Set((Array.isArray(parsed.financeCategories) ? parsed.financeCategories : defaults.financeCategories).filter((c:FinanceCategory)=>c.type==="income"&&c.name==="工资").map((c:FinanceCategory)=>c.id));
+  const financeEntries = cleanup ? entries.filter((e:FinanceEntry)=>!(wageIds.has(e.categoryId)&&e.note==="本月到手工资")) : entries;
+  return {financeSettings,financeEntries};
+};
 
 const packingGroups:Record<string,string[]>={
   "证件类":["身份证","护照","港澳通行证"],
@@ -366,6 +368,9 @@ function useWorkbench() {
         const financeDefaults = phaseFourDefaults();
         const jobDefaults = phaseFiveDefaults();
         const travelDefaults = phaseSixDefaults();
+        const shouldCleanSalary = localStorage.getItem(SALARY_CLEANUP_KEY)!=="done";
+        const cleanFinance = withoutStoredSalary(parsed,financeDefaults,shouldCleanSalary);
+        if(shouldCleanSalary)localStorage.setItem(SALARY_CLEANUP_KEY,"done");
         setData({
           ...parsed,
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
@@ -378,11 +383,12 @@ function useWorkbench() {
           recipes: Array.isArray(parsed.recipes) ? parsed.recipes : healthDefaults.recipes,
           healthSettings: parsed.healthSettings || healthDefaults.healthSettings,
           financeCategories: Array.isArray(parsed.financeCategories) ? parsed.financeCategories : financeDefaults.financeCategories,
-          financeEntries: Array.isArray(parsed.financeEntries) ? parsed.financeEntries : financeDefaults.financeEntries,
+          financeEntries: cleanFinance.financeEntries,
           shoppingItems: Array.isArray(parsed.shoppingItems) ? parsed.shoppingItems : financeDefaults.shoppingItems,
           savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : financeDefaults.savingsGoals,
-          financeSettings: parsed.financeSettings || financeDefaults.financeSettings,
+          financeSettings: cleanFinance.financeSettings,
           jobs: Array.isArray(parsed.jobs) ? parsed.jobs : jobDefaults.jobs,
+          jobCriteria: Array.isArray(parsed.jobCriteria) ? parsed.jobCriteria : jobDefaults.jobCriteria,
           destinations: Array.isArray(parsed.destinations) ? parsed.destinations : travelDefaults.destinations,
           travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
           packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
@@ -489,6 +495,7 @@ export default function Home() {
         const financeDefaults = phaseFourDefaults();
         const jobDefaults = phaseFiveDefaults();
         const travelDefaults = phaseSixDefaults();
+        const cleanFinance = withoutStoredSalary(parsed,financeDefaults);
         setPendingImport({
           ...parsed,
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
@@ -501,11 +508,12 @@ export default function Home() {
           recipes: Array.isArray(parsed.recipes) ? parsed.recipes : healthDefaults.recipes,
           healthSettings: parsed.healthSettings || healthDefaults.healthSettings,
           financeCategories: Array.isArray(parsed.financeCategories) ? parsed.financeCategories : financeDefaults.financeCategories,
-          financeEntries: Array.isArray(parsed.financeEntries) ? parsed.financeEntries : financeDefaults.financeEntries,
+          financeEntries: cleanFinance.financeEntries,
           shoppingItems: Array.isArray(parsed.shoppingItems) ? parsed.shoppingItems : financeDefaults.shoppingItems,
           savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : financeDefaults.savingsGoals,
-          financeSettings: parsed.financeSettings || financeDefaults.financeSettings,
+          financeSettings: cleanFinance.financeSettings,
           jobs: Array.isArray(parsed.jobs) ? parsed.jobs : jobDefaults.jobs,
+          jobCriteria: Array.isArray(parsed.jobCriteria) ? parsed.jobCriteria : jobDefaults.jobCriteria,
           destinations: Array.isArray(parsed.destinations) ? parsed.destinations : travelDefaults.destinations,
           travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
           packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
@@ -550,6 +558,7 @@ export default function Home() {
         savingsGoals: merge(current.savingsGoals, pendingImport.savingsGoals),
         financeSettings: pendingImport.financeSettings.updatedAt > current.financeSettings.updatedAt ? pendingImport.financeSettings : current.financeSettings,
         jobs: merge(current.jobs, pendingImport.jobs),
+        jobCriteria: merge(current.jobCriteria, pendingImport.jobCriteria),
         destinations: merge(current.destinations, pendingImport.destinations),
         travelPlans: merge(current.travelPlans, pendingImport.travelPlans),
         packingTemplate: pendingImport.packingTemplate.length ? pendingImport.packingTemplate : current.packingTemplate,
@@ -1023,16 +1032,28 @@ function MemoEditor({ patch, close }: { patch:any; close:()=>void }) {
 
 function Jobs({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void}) {
   const statuses:JobStatus[]=["感兴趣","已投递","已面试","已拒绝"];
-  const [keyword,setKeyword]=useState("RPA");
+  const [keyword,setKeyword]=useState("");
   const [status,setStatus]=useState<JobStatus|"全部">("全部");
   const [showAdd,setShowAdd]=useState(false);
   const [deleteId,setDeleteId]=useState<string|null>(null);
+  const [criterionDraft,setCriterionDraft]=useState<{kind:JobCriterion["kind"];value:string}>({kind:"关键词",value:""});
   const [form,setForm]=useState({company:"",title:"",salary:"",companySize:"",location:"杭州",jd:"",url:""});
   const filtered=data.jobs.filter(j=>{
     const text=`${j.title} ${j.jd}`.toLowerCase();
-    const words=keyword.toLowerCase().split(/[\s/、]+/).filter(Boolean);
-    return (!words.length||words.some(w=>text.includes(w)))&&j.companySize>100&&j.location.includes("杭州")&&(status==="全部"||j.status===status);
+    const searchWords=keyword.toLowerCase().split(/[\s/、]+/).filter(Boolean);
+    const matchesCriteria=data.jobCriteria.every(c=>{
+      if(c.kind==="关键词"){const words=c.value.toLowerCase().split(/[\s/、]+/).filter(Boolean);return !words.length||words.some(w=>text.includes(w));}
+      if(c.kind==="地点")return !c.value.trim()||j.location.includes(c.value.trim());
+      const min=Number(c.value);return !Number.isFinite(min)||j.companySize>=min;
+    });
+    return (!searchWords.length||searchWords.some(w=>`${j.company} ${j.location} ${text}`.toLowerCase().includes(w)))&&matchesCriteria&&(status==="全部"||j.status===status);
   }).sort((a,b)=>b.updatedAt-a.updatedAt);
+  const addCriterion=(e:FormEvent)=>{
+    e.preventDefault(); if(!criterionDraft.value.trim())return;
+    patch(d=>({...d,jobCriteria:[...d.jobCriteria,{id:uid(),kind:criterionDraft.kind,value:criterionDraft.value.trim(),updatedAt:Date.now()}]}));
+    setCriterionDraft({kind:"关键词",value:""});
+  };
+  const updateCriterion=(id:string,next:Partial<JobCriterion>)=>patch(d=>({...d,jobCriteria:d.jobCriteria.map(c=>c.id===id?{...c,...next,updatedAt:Date.now()}:c)}));
   const addJob=(e:FormEvent)=>{
     e.preventDefault(); const size=Number(form.companySize);
     if(!form.company.trim()||!form.title.trim()||!form.jd.trim()||!Number.isFinite(size))return;
@@ -1044,7 +1065,7 @@ function Jobs({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>Work
   const setJobStatus=(id:string,next:JobStatus)=>patch(d=>({...d,jobs:d.jobs.map(j=>j.id===id?{...j,status:next,statusUpdatedAt:Date.now(),updatedAt:Date.now()}:j)}));
   return <div className="page jobs-page">
     <section className="jobs-hero">
-      <div><span className="eyebrow">CAREER OPPORTUNITIES</span><h1>去遇见更适合你的机会</h1><p>聚焦杭州 · RPA / 影刀 · 100 人以上公司，所有追踪状态仅保存在本机。</p></div>
+      <div><span className="eyebrow">CAREER OPPORTUNITIES</span><h1>去遇见更适合你的机会</h1><p>按照你自己设置的条件筛选，所有追踪状态仅保存在本机。</p></div>
       <div className="job-match"><i>✦</i><div><b>{filtered.length} 个匹配岗位</b><small>按你的期望自动筛选</small></div></div>
     </section>
     <div className="growth-tabs jobs-tabs">
@@ -1055,11 +1076,16 @@ function Jobs({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>Work
       <div><a href="https://m.zhipin.com/zhaopin/ca858bd04f5d99261HV-09m5GQ~~/" target="_blank" rel="noreferrer">查看 BOSS 公开搜索</a><a className="secondary" href="https://mwenku.51job.com/hangzhou_jobs/202601/Python/" target="_blank" rel="noreferrer">查看前程无忧公开页</a></div>
     </section>
     <div className="job-toolbar">
-      <label><span>⌕</span><input value={keyword} onChange={e=>setKeyword(e.target.value)} placeholder="搜索 RPA、影刀、AI Agent…"/></label>
+      <label><span>⌕</span><input value={keyword} onChange={e=>setKeyword(e.target.value)} placeholder="在筛选结果中继续搜索…"/></label>
       <button onClick={()=>setShowAdd(true)}>＋ 录入岗位</button>
     </div>
     <section className="job-rule">
-      <span>当前筛选</span><b>JD 含“{keyword||"不限"}”</b><b>公司人数 ＞ 100</b><b>杭州</b>
+      <header><div><span className="eyebrow">FILTER RULES</span><h2>招聘筛选条件</h2></div><small>修改后会立即重新筛选</small></header>
+      <div className="job-criteria">
+        {data.jobCriteria.map(c=><article key={c.id}><select value={c.kind} onChange={e=>updateCriterion(c.id,{kind:e.target.value as JobCriterion["kind"]})}><option>关键词</option><option>地点</option><option>最低公司人数</option></select><input type={c.kind==="最低公司人数"?"number":"text"} min={c.kind==="最低公司人数"?"1":undefined} value={c.value} onChange={e=>updateCriterion(c.id,{value:e.target.value})}/><button onClick={()=>patch(d=>({...d,jobCriteria:d.jobCriteria.filter(x=>x.id!==c.id)}))} aria-label="删除筛选条件">×</button></article>)}
+        {!data.jobCriteria.length&&<p>还没有筛选条件，会显示全部岗位。</p>}
+      </div>
+      <form className="job-criterion-add" onSubmit={addCriterion}><select value={criterionDraft.kind} onChange={e=>setCriterionDraft({...criterionDraft,kind:e.target.value as JobCriterion["kind"]})}><option>关键词</option><option>地点</option><option>最低公司人数</option></select><input type={criterionDraft.kind==="最低公司人数"?"number":"text"} min={criterionDraft.kind==="最低公司人数"?"1":undefined} value={criterionDraft.value} onChange={e=>setCriterionDraft({...criterionDraft,value:e.target.value})} placeholder={criterionDraft.kind==="关键词"?"例如：AI Agent / RPA":criterionDraft.kind==="地点"?"例如：杭州":"例如：100"}/><button>＋ 添加条件</button></form>
     </section>
     <section className="job-grid">
       {filtered.map(job=><article className="job-card" key={job.id}>

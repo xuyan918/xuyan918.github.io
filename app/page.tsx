@@ -28,7 +28,7 @@ type Destination = { id:string; place:string; country:string; visited:boolean; u
 type ItineraryItem = { id:string; day:number; time:string; content:string };
 type PackingItem = { id:string; category:string; name:string; checked:boolean };
 type TravelPlan = { id:string; name:string; startDate:string; endDate:string; itinerary:ItineraryItem[]; packing:PackingItem[]; updatedAt:number };
-type SpecialDay = { id:string; title:string; date:string; kind:"节日"|"折扣"|"演唱会"|"生日"; calendar:"公历"|"农历"; lunarDate?:string; reminderDays:number; recurrence?:"weekly"|"monthly"|"yearly"; weekday?:number; monthDay?:number; month?:number; updatedAt:number };
+type SpecialDay = { id:string; title:string; date:string; kind:"节日"|"折扣"|"演唱会"|"生日"; calendar:"公历"|"农历"; lunarDate?:string; lunarMonth?:number; lunarDay?:number; reminderDays:number; recurrence?:"weekly"|"monthly"|"yearly"; weekday?:number; monthDay?:number; month?:number; updatedAt:number };
 type WorkbenchData = {
   version: 1;
   exportedAt?: number;
@@ -149,11 +149,26 @@ const PROMO_SPECIAL_DAYS:SpecialDay[]=[
   ...birthdayPromos.map((title,i)=>promoDay(`birthday-0918-${i}`,title,{recurrence:"yearly",month:9,monthDay:18})),
   promoDay("haidilao-0901","海底捞9月1日送30元代金券",{recurrence:"yearly",month:9,monthDay:1})
 ];
-const occursOn=(item:SpecialDay,date:string)=>{const d=new Date(`${date}T12:00:00`);if(item.recurrence==="weekly")return d.getDay()===item.weekday;if(item.recurrence==="monthly")return d.getDate()===item.monthDay;if(item.recurrence==="yearly")return d.getMonth()+1===item.month&&d.getDate()===item.monthDay;return item.date===date};
+const birthdayDay=(id:string,title:string,month:number,monthDay:number):SpecialDay=>({id:`birthday-${id}`,title,date:`2026-${String(month).padStart(2,"0")}-${String(monthDay).padStart(2,"0")}`,kind:"生日",calendar:"公历",reminderDays:3,recurrence:"yearly",month,monthDay,updatedAt:Date.now()});
+const lunarBirthday=(id:string,title:string,lunarDate:string,lunarMonth:number,lunarDay:number):SpecialDay=>({id:`birthday-${id}`,title,date:todayKey(),kind:"生日",calendar:"农历",lunarDate,lunarMonth,lunarDay,reminderDays:3,recurrence:"yearly",updatedAt:Date.now()});
+const BIRTHDAY_SPECIAL_DAYS:SpecialDay[]=[
+  birthdayDay("self","我的生日",9,18),birthdayDay("mom","妈妈的生日",12,28),birthdayDay("dad","爸爸的生日",6,30),
+  birthdayDay("yuebao","越宝的生日",10,31),birthdayDay("jiang-qingyang","蒋清扬的生日",12,31),birthdayDay("qin-shen","秦深的生日",2,1),
+  birthdayDay("liu-yang","刘洋的生日",2,8),birthdayDay("xiang-xiner","向芯儿的生日",2,15),birthdayDay("tian-yuyang","田雨阳的生日",4,2),
+  birthdayDay("liu-juanjuan","刘娟娟的生日",2,19),birthdayDay("xiao-wendi","肖文迪的生日",4,3),birthdayDay("li-wenhui","李文惠的生日",4,12),
+  birthdayDay("liu-dan","刘丹的生日",4,18),birthdayDay("deng-yi","邓祎的生日",5,4),birthdayDay("niu-zhulin","牛朱琳的生日",6,8),
+  birthdayDay("tang-zhi","唐志的生日",7,11),birthdayDay("li-yue","李玥的生日",7,22),birthdayDay("maiyatang","麦芽糖的生日",8,13),
+  birthdayDay("wang-seven","王seven的生日",8,18),birthdayDay("song-lihua","宋丽华的生日",8,19),birthdayDay("jiang-chenxu","姜晨旭的生日",10,20),
+  birthdayDay("li-shanshan","李珊珊的生日",11,1),birthdayDay("gu-yue","古悦的生日",11,18),birthdayDay("wang-xuan","王萱的生日",12,27),
+  lunarBirthday("sun-longxu","孙珑栩的生日","腊月十八",12,18),lunarBirthday("duizhang","队长的生日","九月初九（重阳节）",9,9),
+  lunarBirthday("gong-dongyang","巩冬旸的生日","五月初一",5,1),lunarBirthday("huihui","惠惠的生日","腊月初一",12,1)
+];
+const lunarParts=(date:string)=>{const parts=new Intl.DateTimeFormat("zh-CN-u-ca-chinese",{month:"numeric",day:"numeric"}).formatToParts(new Date(`${date}T12:00:00`));return {month:Number(parts.find(x=>x.type==="month")?.value),day:Number(parts.find(x=>x.type==="day")?.value)}};
+const occursOn=(item:SpecialDay,date:string)=>{const d=new Date(`${date}T12:00:00`);if(item.calendar==="农历"&&item.recurrence==="yearly"){const lunar=lunarParts(date);return lunar.month===item.lunarMonth&&lunar.day===item.lunarDay}if(item.recurrence==="weekly")return d.getDay()===item.weekday;if(item.recurrence==="monthly")return d.getDate()===item.monthDay;if(item.recurrence==="yearly")return d.getMonth()+1===item.month&&d.getDate()===item.monthDay;return item.date===date};
 const nextSpecialDate=(item:SpecialDay,from=todayKey())=>{if(!item.recurrence)return item.date;for(let i=0;i<370;i++){const date=addDays(from,i);if(occursOn(item,date))return date}return item.date};
 const specialDaysForDate=(items:SpecialDay[],date:string)=>items.filter(item=>occursOn(item,date));
-const specialRuleLabel=(item:SpecialDay)=>item.recurrence==="weekly"?`每周${["日","一","二","三","四","五","六"][item.weekday||0]}`:item.recurrence==="monthly"?`每月 ${item.monthDay} 日`:item.recurrence==="yearly"?`每年 ${item.month} 月 ${item.monthDay} 日`:"单次提醒";
-const withPromoSpecials=(items:SpecialDay[])=>[...items.filter(x=>!x.id.startsWith("promo-")),...PROMO_SPECIAL_DAYS];
+const specialRuleLabel=(item:SpecialDay)=>item.calendar==="农历"&&item.recurrence==="yearly"?`农历每年 ${item.lunarDate}`:item.recurrence==="weekly"?`每周${["日","一","二","三","四","五","六"][item.weekday||0]}`:item.recurrence==="monthly"?`每月 ${item.monthDay} 日`:item.recurrence==="yearly"?`每年 ${item.month} 月 ${item.monthDay} 日`:"单次提醒";
+const withKnownSpecials=(items:SpecialDay[])=>[...items.filter(x=>!x.id.startsWith("promo-")&&!x.id.startsWith("birthday-")),...PROMO_SPECIAL_DAYS,...BIRTHDAY_SPECIAL_DAYS];
 const cycleInfo = (data:WorkbenchData,date=todayKey()) => {
   const sorted=[...data.periods].sort((a,b)=>b.start.localeCompare(a.start));
   const latest=sorted[0];
@@ -285,7 +300,7 @@ const phaseSixDefaults = (now=Date.now()) => {
       {id:uid(),day:2,time:"09:30",content:"城山日出峰与海女村"},
       {id:uid(),day:3,time:"11:00",content:"咖啡馆、橘子园与小店巡游"},
     ],packing:makePacking(),updatedAt:now}] as TravelPlan[],
-    specialDays:withPromoSpecials([{id:"special-sale",title:"会员超市折扣日",date:addDays(todayKey(),3),kind:"折扣",calendar:"公历",reminderDays:3,updatedAt:now}]) as SpecialDay[],
+    specialDays:withKnownSpecials([{id:"special-sale",title:"会员超市折扣日",date:addDays(todayKey(),3),kind:"折扣",calendar:"公历",reminderDays:3,updatedAt:now}]) as SpecialDay[],
   };
 };
 
@@ -371,7 +386,7 @@ function useWorkbench() {
           destinations: Array.isArray(parsed.destinations) ? parsed.destinations : travelDefaults.destinations,
           travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
           packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
-          specialDays: withPromoSpecials(Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays),
+          specialDays: withKnownSpecials(Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays),
         });
       } else setData(seedData());
     } catch {
@@ -494,7 +509,7 @@ export default function Home() {
           destinations: Array.isArray(parsed.destinations) ? parsed.destinations : travelDefaults.destinations,
           travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
           packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
-          specialDays: withPromoSpecials(Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays),
+          specialDays: withKnownSpecials(Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays),
         });
         setImportMode("merge");
       } catch { alert("这个文件不是有效的小熊工作台数据。"); }

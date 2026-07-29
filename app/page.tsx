@@ -67,6 +67,46 @@ const displayDate = (date: string) => {
   const d = new Date(`${date}T12:00:00`);
   return `${d.getMonth() + 1}月${d.getDate()}日`;
 };
+type DailyWord = { word:string; phonetic:string; meaning:string; example:string };
+const dailyIndex = (date:string,length:number) => Math.abs(Math.floor(new Date(`${date}T12:00:00`).getTime()/86400000))%length;
+const IELTS_WORDS:DailyWord[][] = [
+  [
+    ["resilient","/rɪˈzɪliənt/","有韧性的","She remained resilient through every change."],["allocate","/ˈæləkeɪt/","分配","We should allocate more time to revision."],["crucial","/ˈkruːʃəl/","至关重要的","Sleep is crucial for effective learning."],["enhance","/ɪnˈhɑːns/","提升","Regular reading can enhance your vocabulary."],["sustainable","/səˈsteɪnəbəl/","可持续的","Cities need sustainable transport systems."],["perspective","/pəˈspektɪv/","观点；视角","Travel gave her a fresh perspective on life."],["significant","/sɪɡˈnɪfɪkənt/","显著的","The policy produced a significant improvement."],["adapt","/əˈdæpt/","适应","People quickly adapt to new technology."],["contribute","/kənˈtrɪbjuːt/","促成；贡献","Exercise contributes to better mental health."],["inevitable","/ɪˈnevɪtəbəl/","不可避免的","Some degree of change is inevitable."]
+  ],
+  [
+    ["coherent","/kəʊˈhɪərənt/","连贯的","Her argument was clear and coherent."],["compelling","/kəmˈpelɪŋ/","令人信服的","The report presents compelling evidence."],["evaluate","/ɪˈvæljueɪt/","评估","Students should evaluate each source carefully."],["implement","/ˈɪmplɪment/","实施","The city plans to implement the new policy."],["maintain","/meɪnˈteɪn/","维持","It is difficult to maintain a healthy balance."],["prioritize","/praɪˈɒrətaɪz/","优先处理","We need to prioritize urgent tasks."],["fluctuate","/ˈflʌktʃueɪt/","波动","Energy prices fluctuate throughout the year."],["accessible","/əkˈsesəbəl/","易获得的","Online courses make education more accessible."],["controversial","/ˌkɒntrəˈvɜːʃəl/","有争议的","The proposal remains highly controversial."],["justify","/ˈdʒʌstɪfaɪ/","证明……合理","You must justify your opinion with examples."]
+  ],
+  [
+    ["diverse","/daɪˈvɜːs/","多样的","The city has a diverse population."],["efficient","/ɪˈfɪʃənt/","高效的","Public transport is an efficient option."],["emerge","/ɪˈmɜːdʒ/","出现","New challenges may emerge over time."],["impact","/ˈɪmpækt/","影响","Tourism has a major impact on local culture."],["indicate","/ˈɪndɪkeɪt/","表明","The figures indicate steady growth."],["motivate","/ˈməʊtɪveɪt/","激励","Small goals can motivate learners."],["preserve","/prɪˈzɜːv/","保护","We should preserve historic buildings."],["relevant","/ˈreləvənt/","相关的","Include only relevant information."],["transform","/trænsˈfɔːm/","改变","Technology can transform the workplace."],["widespread","/ˈwaɪdspred/","广泛的","Smartphone use is now widespread."]
+  ]
+].map(set=>set.map(([word,phonetic,meaning,example])=>({word,phonetic,meaning,example})));
+const TRACK_DAILIES:Record<string,{items:string[];material:string}[]> = {
+  topik:[{items:["안녕하세요 — 你好","오늘 — 今天","공부하다 — 学习","좋아하다 — 喜欢","천천히 — 慢慢地","语法：-고 싶어요（想要……）","开口：오늘 한국어를 공부하고 싶어요."],material:"先听读 3 遍，再遮住中文独立说出完整句。"},{items:["약속 — 约定","시간 — 时间","친구 — 朋友","만나다 — 见面","기다리다 — 等待","语法：-(으)ㄹ 거예요（将要……）","造句：주말에 친구를 만날 거예요."],material:"把例句里的“朋友”替换成家人、同事，再说两遍。"},{items:["날씨 — 天气","따뜻하다 — 温暖","산책 — 散步","공원 — 公园","기분 — 心情","语法：-아서/어서（因为／然后）","造句：날씨가 좋아서 공원에서 산책해요."],material:"注意 좋아서 的连读，录下自己的一遍朗读。"}],
+  cpa:[{items:["概念：资产的定义、确认条件与常见分类","辨析：资产与费用的边界","例题：用银行存款购入设备，会同时影响哪些科目？","复盘：用一句话解释“预期带来经济利益”"],material:"用 15 分钟画出资产、负债、所有者权益的关系图。"},{items:["概念：权责发生制","辨析：收付实现制与权责发生制","例题：12 月提供服务、次年 1 月收款，收入何时确认？","复盘：列举一个预付和一个应付场景"],material:"先判断业务发生时间，再判断现金收付时间。"},{items:["概念：借贷记账法与会计恒等式","规则：资产增加记借方，负债增加记贷方","例题：短期借款到账如何编制分录？","复盘：检查借贷金额是否相等"],material:"今天只练 3 笔简单分录，重点是方向准确。"}],
+  photoshop:[{items:["工具：污点修复画笔（J）","理解：新建空白图层并勾选“对所有图层取样”","练习：移除生活照中的一个小杂物","检查：放大 100% 查看纹理是否自然"],material:"快捷键：⌘J 复制图层；⌘T 自由变换。"},{items:["工具：快速选择工具（W）","理解：选择并遮住比直接删除更可逆","练习：把人物从纯色背景中分离","检查：用“选择并遮住”优化发丝边缘"],material:"粗选 → 边缘优化 → 图层蒙版 → 回看细节。"},{items:["工具：曲线（⌘M）","理解：黑场、灰场与白场","练习：修正一张偏暗照片","检查：避免高光过曝和暗部死黑"],material:"先做轻微 S 曲线，再切换图层可见性比较前后。"}],
+  law:[{items:["案例：公司解除劳动合同，需要满足什么条件？","知识点：解除理由、程序与经济补偿是三个不同问题","行动：保存劳动合同、工资记录与沟通证据","自测：口头通知是否等于合法解除？"],material:"仅作常识学习，具体问题仍需咨询专业人士。"},{items:["案例：租房押金在什么情况下可以扣除？","知识点：核对合同约定、实际损失与交接记录","行动：入住和退租都拍摄带时间的房屋视频","自测：自然损耗是否应由租客承担？"],material:"证据通常比争论更有用；重要沟通尽量保留书面记录。"},{items:["案例：网购商品不满意能否七日无理由退货？","知识点：先判断商品是否属于法定例外","行动：保留订单、商品页面和沟通记录","自测：拆封是否必然失去退货权？"],material:"具体规则会因商品性质和平台场景不同而变化。"}],
+  "finance-study":[{items:["盘点：列出每月必要支出","行动：计算 3–6 个月安全垫目标","检查：应急资金是否容易取用、风险是否足够低","提醒：不要把短期应急金放进高波动资产"],material:"先求稳定，再谈收益；界面不会展示收入数字。"},{items:["盘点：找出一个可取消的自动续费","行动：为非必需品设置 24 小时冷静期","检查：本周消费是否符合自己的优先级","记录：写下今天避免的一次冲动消费"],material:"预算不是限制生活，而是把钱留给更重要的事。"},{items:["概念：分散配置不能消除所有风险","行动：写下投资期限与可承受回撤","检查：是否理解产品收益来源和费用","提醒：不因短期涨跌频繁改变长期计划"],material:"仅作入门学习，不构成个性化投资建议。"}]
+};
+const trackDaily = (id:string,date:string)=>{
+  if(id==="ielts")return {words:IELTS_WORDS[dailyIndex(date,IELTS_WORDS.length)],items:["口语任务：用 45 秒描述一次你解决工作难题的经历","跟读提示：按意群停顿，重读 resilient、problem 和 solution"],material:"She remained resilient, identified the real problem, and proposed a practical solution.",speaking:"She remained resilient, identified the real problem, and proposed a practical solution."};
+  const sets=TRACK_DAILIES[id]; return sets?{...sets[dailyIndex(date,sets.length)]}:{items:[],material:""};
+};
+const SKILL_LINKS:Record<string,{label:string;url:string}[]> = {
+  agent:[{label:"OpenAI Agents 指南",url:"https://platform.openai.com/docs/guides/agents"},{label:"OpenAI Cookbook",url:"https://cookbook.openai.com/"}],html:[{label:"MDN：HTML",url:"https://developer.mozilla.org/zh-CN/docs/Web/HTML"}],xpath:[{label:"MDN：XPath",url:"https://developer.mozilla.org/zh-CN/docs/Web/XML/XPath"}],python:[{label:"Python 官方教程",url:"https://docs.python.org/zh-cn/3/tutorial/"}],mysql:[{label:"MySQL Reference Manual",url:"https://dev.mysql.com/doc/refman/8.4/en/"}],api:[{label:"MDN：HTTP",url:"https://developer.mozilla.org/zh-CN/docs/Web/HTTP"},{label:"Postman Learning Center",url:"https://learning.postman.com/"}],prompt:[{label:"OpenAI Prompt Engineering",url:"https://platform.openai.com/docs/guides/prompt-engineering"}],workflow:[{label:"n8n 官方文档",url:"https://docs.n8n.io/"}],bi:[{label:"Microsoft Learn：Power BI",url:"https://learn.microsoft.com/zh-cn/training/powerplatform/power-bi"}],warehouse:[{label:"Google Cloud：BigQuery",url:"https://cloud.google.com/bigquery/docs/introduction"}],linux:[{label:"Ubuntu 命令行入门",url:"https://ubuntu.com/tutorials/command-line-for-beginners"}]
+};
+const SKILL_DETAILS:Record<string,{intro:string;steps:string[];practice:string[]}> = {
+  agent:{intro:"Agent 能围绕目标规划步骤、调用工具并根据结果继续行动。重点还包括可控、可观测和失败可恢复。",steps:["理解模型、工具、状态与记忆的分工","用结构化输出约束每一步","为超时、重复执行和敏感操作建立边界"],practice:["做一个读取待办并生成计划的 Agent","记录工具调用结果和错误","设计必须人工确认的动作"]},
+  html:{intro:"HTML 决定网页内容的结构与语义，也直接影响可访问性、SEO 和维护。",steps:["掌握语义标签","理解表单与键盘操作","正确表达图片、媒体与元数据"],practice:["搭一页语义化简历","让表单都有 label","检查无障碍树"]},
+  xpath:{intro:"XPath 用路径和条件定位文档节点，是 RPA 稳定抓取的重要基础。",steps:["区分绝对与相对路径","掌握属性、文本和谓词","使用祖先、兄弟和后代轴"],practice:["为按钮写三种定位","避免易变序号","为动态列表设计稳定定位"]},
+  python:{intro:"Python 可把数据处理、文件操作和接口调用封装成可复用工具。",steps:["数据结构、函数与异常","文件、JSON、日期及日志","requests、pandas 与自动化"],practice:["批量重命名并记录日志","调用 API 后清洗结果","拆成可测试函数"]},
+  mysql:{intro:"MySQL 应从建模和可靠查询开始，再进入索引、事务与性能优化。",steps:["表、主键、外键和类型","过滤、聚合与 JOIN","索引、执行计划和事务"],practice:["设计待办数据表","写月度汇总查询","用 EXPLAIN 比较索引"]},
+  api:{intro:"API 是系统交换数据的契约，稳定集成还需理解鉴权、错误处理和幂等性。",steps:["方法、状态码、Header 与 JSON","Token、OAuth 与最小权限","分页、限流、超时和重试"],practice:["用 Postman 调试 CRUD","为 429 设计退避","密钥不写入代码"]},
+  prompt:{intro:"提示工程是清楚表达目标、上下文、约束和验收标准，并用评测持续迭代。",steps:["明确任务、边界和格式","用示例消除歧义","建立测试集"],practice:["改写一个模糊需求","设计 JSON Schema","做十个案例回归"]},
+  workflow:{intro:"工作流把复杂任务拆成可追踪节点，并考虑分支、重试、补偿和人工介入。",steps:["明确触发、处理和输出","增加日志与唯一标识","设计恢复和人工接管"],practice:["画审批状态图","保证重复触发不重复写入","模拟失败并恢复"]},
+  bi:{intro:"BI 把业务问题转成指标、维度和可行动的可视化。",steps:["定义业务问题和口径","建立指标关系","选择合适图表"],practice:["制作收支看板","写清指标口径","30 秒看出异常"]},
+  warehouse:{intro:"数据仓库整合历史数据，关键是一致口径、分层、质量和可追溯性。",steps:["理解事实表与维度表","学习采集、明细与汇总分层","补充质量与血缘"],practice:["设计星型模型","写清表粒度","校验缺失与重复"]},
+  linux:{intro:"Linux 基础帮助部署、观察和排查服务，重点是文件、权限、进程、网络与日志。",steps:["文件与管道命令","权限和进程","端口、服务、日志和 Shell"],practice:["用管道筛日志","查看端口占用","写带退出码的脚本"]}
+};
 const dateDiff = (from:string,to:string) => Math.floor((new Date(`${to}T12:00:00`).getTime()-new Date(`${from}T12:00:00`).getTime())/86400000);
 const addDays = (date:string,days:number) => { const d=new Date(`${date}T12:00:00`);d.setDate(d.getDate()+days);return dayKey(d); };
 const cycleInfo = (data:WorkbenchData,date=todayKey()) => {
@@ -236,7 +276,7 @@ const seedData = (): WorkbenchData => {
 
 const nav: { id: View; label: string; icon: string }[] = [
   { id: "home", label: "首页", icon: "⌂" },
-  { id: "calendar", label: "日历", icon: "▦" },
+  { id: "calendar", label: "日程", icon: "▦" },
   { id: "growth", label: "成长", icon: "✦" },
   { id: "health", label: "健康", icon: "♡" },
   { id: "finance", label: "财务", icon: "◒" },
@@ -537,7 +577,7 @@ function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: Workbench
     <section className="overview-card lilac dashboard-checkin"><div className="card-title"><span>今日打卡</span><i>✦</i></div><div className="checkin-row">{checkinMetrics.map(x=>{const progress=x.total?x.done/x.total:0;const state=progress===0?"":progress>=1?"done":"partial";return <button key={x.label} className={state} onClick={()=>goSection(x.target,x.tab)}><i style={{"--check-progress":`${progress*360}deg`} as React.CSSProperties}>{progress>=1?"✓":progress>0?<b>{Math.round(progress*100)}</b>:""}</i><span><b>{x.label}</b><small>{x.detail}</small></span></button>})}</div></section>
     {reminders.length>0&&<button className="dashboard-reminder" onClick={()=>go("travel")}><span>♡ 未来三天提醒</span><div>{reminders.map(x=><b key={x.id}>{x.kind==="生日"?"🎂":"✦"} {x.title}<small>{x.date===today?"今天":`${dateDiff(today,x.date)} 天后`}</small></b>)}</div><i>去看看 →</i></button>}
     <section className="dashboard-insights">
-      <button className="month-status" onClick={()=>go("finance")}><div className="insight-head"><div><span className="eyebrow">THIS MONTH</span><h2>本月状态</h2></div><small>不展示收入及储蓄金额</small></div><div className="month-metrics"><article><i className="saving-ring" style={{"--saving-progress":`${savingProgress*3.6}deg`} as React.CSSProperties}><b>{savingProgress}%</b></i><span>储蓄进度</span></article><article><b>{workoutCount}<small> 次</small></b><span>运动完成</span></article><article><b>{learningDays}<small> 天</small></b><span>学习记录</span></article></div></button>
+      <button className="month-status" onClick={()=>go("finance")}><div className="insight-head"><div><span className="eyebrow">THIS MONTH</span><h2>本月状态</h2></div></div><div className="month-metrics"><article><i className="saving-ring" style={{"--saving-progress":`${savingProgress*3.6}deg`} as React.CSSProperties}><b>{savingProgress}%</b></i><span>储蓄进度</span></article><article><b>{workoutCount}<small> 次</small></b><span>运动完成</span></article><article><b>{learningDays}<small> 天</small></b><span>学习记录</span></article></div></button>
       <button className="health-glance" onClick={()=>go("health")}><div className="insight-head"><div><span className="eyebrow">TODAY&apos;S WELLNESS</span><h2>今日健康提示</h2></div><i>{homeWeather?.code&&homeWeather.code>=50?"☂":"♡"}</i></div><p>{healthTip}</p><span>查看完整健康建议 →</span></button>
     </section>
     {deleteTodo&&<Modal title="删除这个临时待办吗？" onClose={()=>setDeleteTodo(null)}><p className="modal-copy">它也会同时从日历和备忘中的 To-do 汇总里移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTodo(null)}>先保留</button><button className="danger" onClick={()=>{patch(x=>({...x,todos:x.todos.filter(y=>y.id!==deleteTodo)}));setDeleteTodo(null)}}>确认删除</button></div></Modal>}
@@ -761,6 +801,46 @@ function FinanceEditor({item,data,patch,close}:{item:FinanceEntry|null;data:Work
   return <Modal title={item?"编辑账目":"手动记一笔"} onClose={close}><form className="editor-form" onSubmit={submit}><div className="two-col"><label>收支类型<select value={form.type} onChange={e=>{const type=e.target.value as "income"|"expense";setForm({...form,type,categoryId:data.financeCategories.find(c=>c.type===type)!.id})}}><option value="expense">支出</option><option value="income">收入</option></select></label><label>分类<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}>{data.financeCategories.filter(c=>c.type===form.type).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label></div><label>金额<input type="number" min=".01" step=".01" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} required/></label><label>备注<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})}/></label><div className="two-col"><label>日期<input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}/></label><label>时间<input type="time" value={form.time} onChange={e=>setForm({...form,time:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={close}>取消</button><button>保存账目</button></div></form></Modal>;
 }
 
+function SpeakingPractice({text}:{text:string}) {
+  const [recording,setRecording]=useState(false);
+  const [audioUrl,setAudioUrl]=useState("");
+  const [transcript,setTranscript]=useState("");
+  const [feedback,setFeedback]=useState("");
+  const [error,setError]=useState("");
+  const recorderRef=useRef<MediaRecorder|null>(null);
+  const recognitionRef=useRef<any>(null);
+  const chunksRef=useRef<Blob[]>([]);
+  useEffect(()=>()=>{if(audioUrl)URL.revokeObjectURL(audioUrl)},[audioUrl]);
+  const analyze=(heard:string)=>{
+    const clean=(s:string)=>s.toLowerCase().replace(/[^a-z'\s]/g,"").split(/\s+/).filter(Boolean);
+    const expected=clean(text),actual=clean(heard);
+    const matched=expected.filter((word,i)=>actual[i]===word||actual.includes(word)).length;
+    const score=Math.round(matched/Math.max(expected.length,1)*100);
+    const missed=[...new Set(expected.filter(word=>!actual.includes(word)))].slice(0,4);
+    setFeedback(`${score>=85?"跟读内容很完整，节奏可以再自然一些。":score>=60?"整体清楚，再留意个别词和意群停顿。":"建议放慢语速，先分成三个意群逐句练习。"} 文本匹配约 ${score}%${missed.length?`；可重点练习：${missed.join("、")}`:"。"}`);
+  };
+  const start=async()=>{
+    setError("");setFeedback("");setTranscript("");
+    if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){setError("当前浏览器不支持录音，请使用最新版 Safari 或 Chrome。");return}
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      const recorder=new MediaRecorder(stream); recorderRef.current=recorder; chunksRef.current=[];
+      recorder.ondataavailable=e=>{if(e.data.size)chunksRef.current.push(e.data)};
+      recorder.onstop=()=>{if(audioUrl)URL.revokeObjectURL(audioUrl);setAudioUrl(URL.createObjectURL(new Blob(chunksRef.current,{type:recorder.mimeType})));stream.getTracks().forEach(track=>track.stop())};
+      const Recognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
+      if(Recognition){
+        const recognition=new Recognition(); recognitionRef.current=recognition; recognition.lang="en-US"; recognition.interimResults=false;
+        recognition.onresult=(e:any)=>{const heard=e.results?.[0]?.[0]?.transcript||"";setTranscript(heard);analyze(heard)};
+        recognition.onerror=()=>setError("录音已保留，但本次未能完成语音转写，可以先回放自查。");
+        recognition.start();
+      } else setError("录音功能可用；当前浏览器不支持自动语音转写，请回放自查。");
+      recorder.start();setRecording(true);
+    }catch{setError("没有获得麦克风权限。你可以在浏览器设置中允许后再试。")}
+  };
+  const stop=()=>{recorderRef.current?.stop();try{recognitionRef.current?.stop()}catch{}setRecording(false)};
+  return <section className="speaking-practice"><div><span>口语跟读</span><p>{text}</p></div><button className={recording?"recording":""} onClick={recording?stop:start}>{recording?"■ 停止并分析":"● 点击录音"}</button><small>仅在你点击后申请麦克风权限；录音留在本设备，不会上传。</small>{audioUrl&&<audio controls src={audioUrl}/>} {transcript&&<p className="transcript"><b>识别文本：</b>{transcript}</p>}{feedback&&<p className="speech-feedback">{feedback}<small>浏览器文本匹配仅供练习参考，并非专业声学评分。</small></p>}{error&&<p className="speech-error">{error}</p>}</section>;
+}
+
 function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch: (fn:(d:WorkbenchData)=>WorkbenchData)=>void; initialTab?:"path"|"learn"|"goals" }) {
   const [tab,setTab]=useState<"path"|"learn"|"goals">(initialTab);
   const [openSkill,setOpenSkill]=useState<string>("agent");
@@ -769,6 +849,7 @@ function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch
   const [goalText,setGoalText]=useState("");
   const [goalKind,setGoalKind]=useState<Goal["kind"]>("证书");
   const [deleteGoal,setDeleteGoal]=useState<string|null>(null);
+  const [detailSkill,setDetailSkill]=useState<Skill|null>(null);
   const today=todayKey();
   const checked=(trackId:string)=>data.checkins.some(c=>c.trackId===trackId&&c.date===today);
   const toggleTrack=(trackId:string)=>{
@@ -804,10 +885,10 @@ function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch
         {openSkill===skill.id&&<div className="skill-detail">
           <div className="plan-columns"><div><h4>初级计划</h4>{skill.beginner.map(x=><p key={x}>○ {x}</p>)}</div><div><h4>进阶计划</h4>{skill.advanced.map(x=><p key={x}>◇ {x}</p>)}</div></div>
           <div className="knowledge"><h4>核心知识点</h4>{skill.points.map(x=><span key={x}>{x}</span>)}</div>
-          <div className="resource-list"><h4>推荐资料</h4>{skill.resources.map(x=><p key={x}>↗ {x}</p>)}</div>
+          <div className="resource-list"><h4>推荐资料</h4>{(SKILL_LINKS[skill.id]||[]).map(x=><a key={x.url} href={x.url} target="_blank" rel="noreferrer">↗ {x.label}</a>)}</div>
           {skill.notes&&<div className="skill-note"><b>我的总结</b><p>{skill.notes}</p></div>}
           <details className="material-box"><summary>粘贴我的资料并本地提炼</summary><textarea value={sourceText} onChange={e=>setSourceText(e.target.value)} placeholder="粘贴学习笔记或资料文字。工作台会在本地抽取前四个要点，不会上传。"/><button onClick={()=>summarize(skill.id)}>提炼到技能卡</button></details>
-          <footer><small>{skill.lastCheckin?`最近打卡：${displayDate(skill.lastCheckin)}`:"还没有打卡"}</small><button onClick={()=>cycleSkill(skill.id)}>更新进度并打卡 →</button></footer>
+          <footer><small>{skill.lastCheckin?`最近打卡：${displayDate(skill.lastCheckin)}`:"还没有打卡"}</small><div><button className="secondary" onClick={()=>setDetailSkill(skill)}>深入讲解</button><button onClick={()=>cycleSkill(skill.id)}>更新进度并打卡 →</button></div></footer>
         </div>}
       </article>)}</div>
     </section>}
@@ -815,11 +896,12 @@ function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch
     {tab==="learn"&&<section>
       <div className="growth-section-head"><div><span className="eyebrow">DAILY LEARNING</span><h2>今天学一点，就很好</h2></div><p>每项都有实际内容、阶段计划和独立打卡。</p></div>
       <div className="track-layout"><aside>{data.learningTracks.map(track=><button key={track.id} className={openTrack===track.id?"active":""} onClick={()=>setOpenTrack(track.id)}><i>{track.icon}</i><span>{track.name}<small>{track.subtitle}</small></span><b className={checked(track.id)?"checked":""}>{checked(track.id)?"✓":""}</b></button>)}</aside>
-      {data.learningTracks.filter(t=>t.id===openTrack).map(track=><article className="track-detail" key={track.id}><div className="track-title"><div><span className="track-icon">{track.icon}</span><div><h2>{track.name}</h2><p>{track.subtitle}</p></div></div><button className={checked(track.id)?"checked":""} onClick={()=>toggleTrack(track.id)}>{checked(track.id)?"✓ 今日已打卡":"今日打卡"}</button></div>
-        <div className="today-learning"><span>今日内容</span>{track.today.map(x=><p key={x}>✦ {x}</p>)}<blockquote>{track.material}</blockquote></div>
+      {data.learningTracks.filter(t=>t.id===openTrack).map(track=>{const daily=trackDaily(track.id,today);return <article className="track-detail" key={track.id}><div className="track-title"><div><span className="track-icon">{track.icon}</span><div><h2>{track.name}</h2><p>{track.subtitle}</p></div></div><button className={checked(track.id)?"checked":""} onClick={()=>toggleTrack(track.id)}>{checked(track.id)?"✓ 今日已打卡":"今日打卡"}</button></div>
+        <div className="today-learning"><span>今日内容 · {displayDate(today)} <em>每天自动轮换</em></span>{daily.words&&<div className="word-grid">{daily.words.map((x,i)=><article key={x.word}><b>{i+1}. {x.word}</b><small>{x.phonetic} · {x.meaning}</small><p>{x.example}</p></article>)}</div>}{daily.items.map(x=><p key={x}>✦ {x}</p>)}<blockquote>{daily.material}</blockquote></div>
+        {daily.speaking&&<SpeakingPractice text={daily.speaking}/>}
         <div className="stage-plan"><h3>阶段学习计划</h3>{track.plan.map((x,i)=><div key={x}><b>0{i+1}</b><span>{x}</span></div>)}</div>
         <div className="track-note"><label>我的学习记录<textarea value={data.checkins.find(c=>c.trackId===track.id&&c.date===today)?.note||""} onChange={e=>patch(d=>({...d,checkins:d.checkins.map(c=>c.trackId===track.id&&c.date===today?{...c,note:e.target.value,updatedAt:Date.now()}:c)}))} placeholder={checked(track.id)?"写下今天实际学了什么…":"打卡后可以记录实际学习内容"}/></label></div>
-      </article>)}</div>
+      </article>})}</div>
     </section>}
 
     {tab==="goals"&&<section>
@@ -828,6 +910,7 @@ function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch
       <div className="goal-columns">{(["证书","副业","技能"] as Goal["kind"][]).map(kind=><section className="goal-column" key={kind}><header><i>{kind==="证书"?"♢":kind==="副业"?"♡":"✦"}</i><div><h3>{kind==="证书"?"想考取的证":kind==="副业"?"想做的副业":"想拓展的技能"}</h3><small>{data.goals.filter(g=>g.kind===kind&&g.done).length}/{data.goals.filter(g=>g.kind===kind).length} 完成</small></div></header>{data.goals.filter(g=>g.kind===kind).map(goal=><div className="goal-row" key={goal.id}><label><input type="checkbox" checked={goal.done} onChange={()=>patch(d=>({...d,goals:d.goals.map(g=>g.id===goal.id?{...g,done:!g.done,updatedAt:Date.now()}:g)}))}/><i></i></label><input className={goal.done?"strike":""} value={goal.text} onChange={e=>patch(d=>({...d,goals:d.goals.map(g=>g.id===goal.id?{...g,text:e.target.value,updatedAt:Date.now()}:g)}))}/><button onClick={()=>setDeleteGoal(goal.id)}>×</button></div>)}{!data.goals.some(g=>g.kind===kind)&&<p className="goal-empty">还没有写下目标</p>}</section>)}</div>
     </section>}
     {deleteGoal&&<Modal title="删除这个长期目标吗？" onClose={()=>setDeleteGoal(null)}><p className="modal-copy">这条目标会从清单中移除，小熊再帮你确认一次。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteGoal(null)}>先保留</button><button className="danger" onClick={()=>{patch(d=>({...d,goals:d.goals.filter(g=>g.id!==deleteGoal)}));setDeleteGoal(null)}}>确认删除</button></div></Modal>}
+    {detailSkill&&<Modal title={`${detailSkill.name} · 深入讲解`} onClose={()=>setDetailSkill(null)}><div className="skill-deep"><img src="/bears/bear-ribbon.jpg" alt="陪伴学习的水彩小熊"/><p>{SKILL_DETAILS[detailSkill.id]?.intro}</p><div className="deep-columns"><section><h3>学习脉络</h3>{SKILL_DETAILS[detailSkill.id]?.steps.map((x,i)=><p key={x}><b>{i+1}</b>{x}</p>)}</section><section><h3>动手练习</h3>{SKILL_DETAILS[detailSkill.id]?.practice.map(x=><p key={x}>✦ {x}</p>)}</section></div><div className="deep-resources"><h3>官方推荐资料</h3>{(SKILL_LINKS[detailSkill.id]||[]).map(x=><a key={x.url} href={x.url} target="_blank" rel="noreferrer">{x.label}<span>打开 ↗</span></a>)}</div></div></Modal>}
   </div>;
 }
 

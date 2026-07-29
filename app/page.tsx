@@ -829,7 +829,6 @@ function Finance({ data, patch }:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)
   const [incomeInput,setIncomeInput]=useState("");
   const [deleteTarget,setDeleteTarget]=useState<{kind:"entry"|"shop"|"goal"|"category";id:string}|null>(null);
   const today=todayKey();
-  useEffect(()=>{const month=today.slice(0,7);const salaryCategory=data.financeCategories.find(c=>c.type==="income"&&c.name==="工资");const hasSalary=salaryCategory&&data.financeEntries.some(e=>e.categoryId===salaryCategory.id&&e.date.startsWith(month));if(!data.financeSettings.monthlyIncome||!hasSalary)patch(d=>{const income=d.financeSettings.monthlyIncome||6000;const category=d.financeCategories.find(c=>c.type==="income"&&c.name==="工资");return {...d,financeSettings:{monthlyIncome:income,updatedAt:Date.now()},financeEntries:category&&!d.financeEntries.some(e=>e.categoryId===category.id&&e.date.startsWith(month))?[...d.financeEntries,{id:uid(),type:"income",categoryId:category.id,amount:income,note:"本月到手工资",date:today,time:"09:00",updatedAt:Date.now()}]:d.financeEntries}})},[data.financeSettings.monthlyIncome,data.financeEntries,data.financeCategories,patch,today]);
   const rangeStart=useMemo(()=>{
     const d=new Date();
     if(range==="week")d.setDate(d.getDate()-6);

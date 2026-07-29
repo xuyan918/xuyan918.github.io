@@ -24,6 +24,11 @@ type SavingsGoal = { id:string; name:string; target:number; saved:number; update
 type FinanceSettings = { monthlyIncome?:number; updatedAt:number };
 type JobStatus = "感兴趣" | "已投递" | "已面试" | "已拒绝";
 type JobListing = { id:string; company:string; title:string; salary:string; companySize:number; location:string; jd:string; url:string; source:string; publishedAt:string; status:JobStatus; statusUpdatedAt:number; updatedAt:number };
+type Destination = { id:string; place:string; country:string; visited:boolean; updatedAt:number };
+type ItineraryItem = { id:string; day:number; time:string; content:string };
+type PackingItem = { id:string; category:string; name:string; checked:boolean };
+type TravelPlan = { id:string; name:string; startDate:string; endDate:string; itinerary:ItineraryItem[]; packing:PackingItem[]; updatedAt:number };
+type SpecialDay = { id:string; title:string; date:string; kind:"节日"|"折扣"|"演唱会"|"生日"; calendar:"公历"|"农历"; lunarDate?:string; reminderDays:number; updatedAt:number };
 type WorkbenchData = {
   version: 1;
   exportedAt?: number;
@@ -46,6 +51,10 @@ type WorkbenchData = {
   savingsGoals: SavingsGoal[];
   financeSettings: FinanceSettings;
   jobs: JobListing[];
+  destinations: Destination[];
+  travelPlans: TravelPlan[];
+  packingTemplate: PackingItem[];
+  specialDays: SpecialDay[];
 };
 
 const STORAGE_KEY = "bear-workbench-v1";
@@ -162,6 +171,39 @@ const phaseFiveDefaults = (now=Date.now()) => ({
   ] as JobListing[],
 });
 
+const packingGroups:Record<string,string[]>={
+  "证件类":["身份证","护照","港澳通行证"],
+  "电子设备类":["电脑","手机","iPad","Switch"],
+  "充电配件类":["充电器","充电宝","耳机"],
+  "摄影设备类":["相机","Pocket3","胶片相机","拍立得"],
+  "出行舒适类":["护颈枕","耳塞","餐巾纸"],
+  "衣物类":["衣服","鞋子","包包"],
+  "贴身衣物类":["内衣","内裤","袜子"],
+  "洗漱用品类":["电动牙刷","洗面奶","洗脸巾","洗发露","沐浴露","护发素","身体乳","梳子","吹风机","护发精油","卷发棒"],
+  "护肤化妆类":["护肤品","面膜","护手霜","化妆品","眼唇卸","卸妆膏","化妆棉"],
+  "首饰配件类":["首饰","美瞳"],
+  "其他杂物类":["拖鞋","浴巾","雨伞","墨镜","阳伞","口罩","折叠衣架"],
+};
+const makePacking=(checked=false)=>Object.entries(packingGroups).flatMap(([category,names])=>names.map((name,i)=>({id:`${category}-${i}-${uid()}`,category,name,checked})));
+const phaseSixDefaults = (now=Date.now()) => {
+  const start=addDays(todayKey(),45),end=addDays(start,3);
+  return {
+    destinations:[
+      {id:"dest-seoul",place:"首尔",country:"韩国",visited:false,updatedAt:now},
+      {id:"dest-kyoto",place:"京都",country:"日本",visited:false,updatedAt:now},
+      {id:"dest-iceland",place:"雷克雅未克",country:"冰岛",visited:false,updatedAt:now},
+      {id:"dest-hk",place:"香港",country:"中国",visited:true,updatedAt:now},
+    ] as Destination[],
+    packingTemplate:makePacking(),
+    travelPlans:[{id:"trip-jeju",name:"济州岛四日慢旅行",startDate:start,endDate:end,itinerary:[
+      {id:uid(),day:1,time:"14:00",content:"抵达后入住，去海边散步"},
+      {id:uid(),day:2,time:"09:30",content:"城山日出峰与海女村"},
+      {id:uid(),day:3,time:"11:00",content:"咖啡馆、橘子园与小店巡游"},
+    ],packing:makePacking(),updatedAt:now}] as TravelPlan[],
+    specialDays:[{id:"special-sale",title:"会员超市折扣日",date:addDays(todayKey(),3),kind:"折扣",calendar:"公历",reminderDays:3,updatedAt:now}] as SpecialDay[],
+  };
+};
+
 const seedData = (): WorkbenchData => {
   const today = todayKey();
   const tomorrow = new Date();
@@ -174,6 +216,7 @@ const seedData = (): WorkbenchData => {
     ...phaseThreeDefaults(now),
     ...phaseFourDefaults(now),
     ...phaseFiveDefaults(now),
+    ...phaseSixDefaults(now),
     events: [
       { id: uid(), date: today, start: "09:30", end: "10:30", title: "整理本周 RPA 任务", categoryId: "work", updatedAt: now },
       { id: uid(), date: today, start: "18:30", end: "19:30", title: "普拉提课程", categoryId: "sport", updatedAt: now },
@@ -222,6 +265,7 @@ function useWorkbench() {
         const healthDefaults = phaseThreeDefaults();
         const financeDefaults = phaseFourDefaults();
         const jobDefaults = phaseFiveDefaults();
+        const travelDefaults = phaseSixDefaults();
         setData({
           ...parsed,
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
@@ -239,6 +283,10 @@ function useWorkbench() {
           savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : financeDefaults.savingsGoals,
           financeSettings: parsed.financeSettings || financeDefaults.financeSettings,
           jobs: Array.isArray(parsed.jobs) ? parsed.jobs : jobDefaults.jobs,
+          destinations: Array.isArray(parsed.destinations) ? parsed.destinations : travelDefaults.destinations,
+          travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
+          packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
+          specialDays: Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays,
         });
       } else setData(seedData());
     } catch {
@@ -337,6 +385,7 @@ export default function Home() {
         const healthDefaults = phaseThreeDefaults();
         const financeDefaults = phaseFourDefaults();
         const jobDefaults = phaseFiveDefaults();
+        const travelDefaults = phaseSixDefaults();
         setPendingImport({
           ...parsed,
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
@@ -354,6 +403,10 @@ export default function Home() {
           savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : financeDefaults.savingsGoals,
           financeSettings: parsed.financeSettings || financeDefaults.financeSettings,
           jobs: Array.isArray(parsed.jobs) ? parsed.jobs : jobDefaults.jobs,
+          destinations: Array.isArray(parsed.destinations) ? parsed.destinations : travelDefaults.destinations,
+          travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
+          packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
+          specialDays: Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays,
         });
         setImportMode("merge");
       } catch { alert("这个文件不是有效的小熊工作台数据。"); }
@@ -394,6 +447,10 @@ export default function Home() {
         savingsGoals: merge(current.savingsGoals, pendingImport.savingsGoals),
         financeSettings: pendingImport.financeSettings.updatedAt > current.financeSettings.updatedAt ? pendingImport.financeSettings : current.financeSettings,
         jobs: merge(current.jobs, pendingImport.jobs),
+        destinations: merge(current.destinations, pendingImport.destinations),
+        travelPlans: merge(current.travelPlans, pendingImport.travelPlans),
+        packingTemplate: pendingImport.packingTemplate.length ? pendingImport.packingTemplate : current.packingTemplate,
+        specialDays: merge(current.specialDays, pendingImport.specialDays),
       };
     });
     setPendingImport(null); setImportMode(null);
@@ -403,7 +460,7 @@ export default function Home() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand"><img src="/bears/app-bear.jpg" alt="" /><div><strong>小熊工作台</strong><span>认真生活，也要拥抱自己</span></div></div>
-        <nav>{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span>{n.id==="travel" && <em>规划中</em>}</button>)}</nav>
+        <nav>{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span></button>)}</nav>
         <div className="sync-box"><span>✦ 数据只在本机保存</span><button onClick={exportJSON}>导出 JSON</button><button className="secondary" onClick={() => fileRef.current?.click()}>导入 JSON</button></div>
       </aside>
 
@@ -414,8 +471,9 @@ export default function Home() {
         {view === "health" && <Health data={data} patch={patch} />}
         {view === "finance" && <Finance data={data} patch={patch} />}
         {view === "jobs" && <Jobs data={data} patch={patch} />}
+        {view === "travel" && <Travel data={data} patch={patch} />}
         {view === "memos" && <Memos data={data} go={go} toggleTodo={toggleTodo} move={move} onAdd={() => setMemoModal(true)} onDelete={setDeleteTarget} patch={patch} />}
-        {!["home","calendar","growth","health","finance","jobs","memos"].includes(view) && <ComingSoon view={view} />}
+        {!["home","calendar","growth","health","finance","jobs","travel","memos"].includes(view) && <ComingSoon view={view} />}
       </main>
 
       <nav className="mobile-nav">{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span></button>)}</nav>
@@ -438,6 +496,7 @@ function Dashboard({ data, go, toggleTodo }: { data: WorkbenchData; go: (v: View
   const careerDone = data.skills.some((s) => s.lastCheckin === today);
   const fitnessDone = data.healthLogs.some((l) => l.date === today && l.trained);
   const latest = [...data.memos].sort((a, b) => b.createdAt - a.createdAt).slice(0, 3);
+  const reminders=data.specialDays.filter(x=>{const days=dateDiff(today,x.date);return days>=0&&days<=Math.max(3,x.reminderDays)}).sort((a,b)=>a.date.localeCompare(b.date));
   const greeting = greetings[Math.floor((d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate()) % greetings.length)];
   return <div className="page dashboard">
     <header className="topbar"><div><p>{d.getFullYear()}年{d.getMonth()+1}月{d.getDate()}日 · {weekday(today)}</p><h1>早上好，今天也慢慢来 <span>♡</span></h1></div><button className="avatar" aria-label="个人设置"><img src="/bears/bear-grid.jpg" alt="" /></button></header>
@@ -448,6 +507,7 @@ function Dashboard({ data, go, toggleTodo }: { data: WorkbenchData; go: (v: View
       <button className="overview-card cream" onClick={() => go("memos")}><div className="card-title"><span>临时备忘</span><i>✎</i></div>{latest.length ? <ul>{latest.map(m=><li key={m.id}>• {m.text}</li>)}</ul> : <p>还没有小纸条</p>}<span className="card-link">打开备忘 →</span></button>
       <div className="overview-card lilac"><div className="card-title"><span>今日打卡</span><i>✦</i></div><div className="checkin-row">{[["学习",todayStudy.length ? `${todayStudy.length} 项完成` : "等待打卡",todayStudy.length>0,"growth"],["健身",fitnessDone?"训练已完成":"等待打卡",fitnessDone,"health"],["职业",careerDone ? "技能已复盘" : "技能树",careerDone,"growth"]].map(([a,b,c,target])=><button key={String(a)} className={c ? "done" : ""} onClick={()=>go(target as View)}><i>{c ? "✓" : ""}</i><span><b>{a}</b><small>{b}</small></span></button>)}</div></div>
     </section>
+    {reminders.length>0&&<button className="dashboard-reminder" onClick={()=>go("travel")}><span>♡ 未来三天提醒</span><div>{reminders.map(x=><b key={x.id}>{x.kind==="生日"?"🎂":"✦"} {x.title}<small>{x.date===today?"今天":`${dateDiff(today,x.date)} 天后`}</small></b>)}</div><i>去看看 →</i></button>}
     <section className="today-panel"><div className="panel-head"><div><span className="eyebrow">TODAY&apos;S PLAN</span><h2>今天的小计划</h2></div><button onClick={() => go("calendar", today)}>＋ 添加待办</button></div>{todays.length ? <div className="dashboard-todos">{todays.sort((a,b)=>a.order-b.order).map(t=><label key={t.id}><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)} /><i></i><span className={t.done?"strike":""}>{t.text}</span><small>{t.done ? "已完成" : "待完成"}</small></label>)}</div> : <Empty text="今天还没有安排，先喝杯水吧。" />}</section>
   </div>;
 }
@@ -475,10 +535,10 @@ function Calendar({ data, dates, selectedDate, setSelectedDate, category, toggle
   return <div className="page calendar-page">
     <header className="page-head"><div><span className="eyebrow">MY CALENDAR</span><h1>日历与日程</h1><p>按自己的节奏，把每一天过得有条不紊。</p></div><button onClick={onAdd}>＋ 新建日程</button></header>
     <div className="quick-parse"><span>✦</span><input value={quickText} onChange={e=>setQuickText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&parseQuick()} placeholder="试试说：明天下午 3 点准备面试资料" /><button onClick={parseQuick}>帮我记下</button></div>
-    <div className="calendar-layout"><aside className="date-rail">{dates.map((date:string)=><button key={date} onClick={()=>setSelectedDate(date)} className={`${selectedDate===date?"selected":""} ${date===todayKey()?"today":""}`}><small>{weekday(date)}</small><strong>{new Date(`${date}T12:00:00`).getDate()}</strong><span>{date===todayKey()?"今天":`${new Date(`${date}T12:00:00`).getMonth()+1}月`}</span>{periodMark(date)&&<em className={periodMark(date)}>✿</em>}{data.healthLogs.some((l:HealthLog)=>l.date===date&&l.trained)&&<em className="trained">✓</em>}</button>)}</aside>
+    <div className="calendar-layout"><aside className="date-rail">{dates.map((date:string)=><button key={date} onClick={()=>setSelectedDate(date)} className={`${selectedDate===date?"selected":""} ${date===todayKey()?"today":""}`}><small>{weekday(date)}</small><strong>{new Date(`${date}T12:00:00`).getDate()}</strong><span>{date===todayKey()?"今天":`${new Date(`${date}T12:00:00`).getMonth()+1}月`}</span>{periodMark(date)&&<em className={periodMark(date)}>✿</em>}{data.healthLogs.some((l:HealthLog)=>l.date===date&&l.trained)&&<em className="trained">✓</em>}{data.specialDays.some((x:SpecialDay)=>x.kind==="生日"&&x.date===date)&&<em className="birthday">🎂</em>}</button>)}</aside>
     <section className="day-detail"><div className="day-heading"><div><span>{displayDate(selectedDate)} · {weekday(selectedDate)}</span><h2>{selectedDate===todayKey()?"今天，温柔地完成这些事":"这一天的安排"}</h2><div className="calendar-checkins">{data.checkins.filter((c:Checkin)=>c.date===selectedDate).map((c:Checkin)=><b key={c.id}>✦ {data.learningTracks.find((t:LearningTrack)=>t.id===c.trackId)?.name}</b>)}{data.skills.some((s:Skill)=>s.lastCheckin===selectedDate)&&<b>⌁ 职业学习</b>}</div></div><button className="secondary" onClick={onAdd}>＋ 添加日程</button></div>
       <div className="event-list">{data.events.filter((e:EventItem)=>e.date===selectedDate).sort((a:EventItem,b:EventItem)=>a.start.localeCompare(b.start)).map((e:EventItem)=><article className="event-card" key={e.id} style={{"--event":category(e.categoryId).color} as React.CSSProperties}><time>{e.start}<small>{e.end}</small></time><i></i><div><span>{category(e.categoryId).name}</span><button onClick={()=>onEdit(e)}>{e.title}</button></div><button className="more" onClick={()=>onDelete({kind:"event",id:e.id})} aria-label="删除日程">×</button></article>)}{!data.events.some((e:EventItem)=>e.date===selectedDate)&&<Empty text="这一天还空空的，留给期待也很好。" />}</div>
-      {(periodMark(selectedDate)||data.healthLogs.some((l:HealthLog)=>l.date===selectedDate&&l.trained))&&<div className="health-day-strip">{periodMark(selectedDate)&&<span>✿ {periodMark(selectedDate)==="actual"?"经期记录":"预测经期"}</span>}{data.healthLogs.some((l:HealthLog)=>l.date===selectedDate&&l.trained)&&<span>✓ 今日训练已打卡</span>}</div>}
+      {(periodMark(selectedDate)||data.healthLogs.some((l:HealthLog)=>l.date===selectedDate&&l.trained)||data.specialDays.some((x:SpecialDay)=>x.date===selectedDate))&&<div className="health-day-strip">{periodMark(selectedDate)&&<span>✿ {periodMark(selectedDate)==="actual"?"经期记录":"预测经期"}</span>}{data.healthLogs.some((l:HealthLog)=>l.date===selectedDate&&l.trained)&&<span>✓ 今日训练已打卡</span>}{data.specialDays.filter((x:SpecialDay)=>x.date===selectedDate).map((x:SpecialDay)=><span key={x.id}>{x.kind==="生日"?"🎂":"✦"} {x.title}</span>)}</div>}
       <section className="todo-section"><div className="todo-head"><h3>当天 To-do</h3><span>{data.todos.filter((t:Todo)=>t.date===selectedDate&&t.done).length} / {data.todos.filter((t:Todo)=>t.date===selectedDate).length} 完成</span></div>
       <div className="todo-list">{data.todos.filter((t:Todo)=>t.date===selectedDate).sort((a:Todo,b:Todo)=>a.order-b.order).map((t:Todo)=><div className="todo-row" key={t.id}><label><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)} /><i></i><span className={t.done?"strike":""}>{t.text}</span></label><div><button onClick={()=>move("todo",t.id,-1)} aria-label="上移">↑</button><button onClick={()=>move("todo",t.id,1)} aria-label="下移">↓</button><button onClick={()=>onDelete({kind:"todo",id:t.id})} aria-label="删除">×</button></div></div>)}</div>
       <form className="add-todo" onSubmit={addTodo}><input value={todoText} onChange={e=>setTodoText(e.target.value)} placeholder="添加一件想完成的小事…" /><button>添加</button></form></section>
@@ -806,6 +866,59 @@ function Jobs({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>Work
     <section className="job-pipeline"><div><span className="eyebrow">APPLICATION TRACKER</span><h2>我的求职进度</h2></div>{statuses.map(s=><article key={s}><b>{data.jobs.filter(j=>j.status===s).length}</b><span>{s}</span><i style={{width:`${Math.max(8,data.jobs.length?data.jobs.filter(j=>j.status===s).length/data.jobs.length*100:0)}%`}}/></article>)}</section>
     {showAdd&&<Modal title="录入一个新岗位" onClose={()=>setShowAdd(false)}><form className="editor-form job-editor" onSubmit={addJob}><div className="two-col"><label>公司名称<input value={form.company} onChange={e=>setForm({...form,company:e.target.value})} required/></label><label>岗位名称<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} required/></label></div><div className="two-col"><label>薪资范围<input value={form.salary} onChange={e=>setForm({...form,salary:e.target.value})} placeholder="如 10–15K"/></label><label>公司人数<input type="number" min="1" value={form.companySize} onChange={e=>setForm({...form,companySize:e.target.value})} required/></label></div><label>工作地点<input value={form.location} onChange={e=>setForm({...form,location:e.target.value})}/></label><label>JD 摘要<textarea rows={4} value={form.jd} onChange={e=>setForm({...form,jd:e.target.value})} placeholder="粘贴包含 RPA 或影刀的岗位描述…" required/></label><label>投递链接（可选）<input type="url" value={form.url} onChange={e=>setForm({...form,url:e.target.value})} placeholder="https://"/></label><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowAdd(false)}>取消</button><button>保存岗位</button></div></form></Modal>}
     {deleteId&&<Modal title="删除这个岗位吗？" onClose={()=>setDeleteId(null)}><p className="modal-copy">岗位和当前投递状态都会从本机移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteId(null)}>先保留</button><button className="danger" onClick={()=>{patch(d=>({...d,jobs:d.jobs.filter(j=>j.id!==deleteId)}));setDeleteId(null)}}>确认删除</button></div></Modal>}
+  </div>;
+}
+
+function Travel({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void}) {
+  const [tab,setTab]=useState<"dreams"|"plans"|"local"|"dates">("dreams");
+  const [selectedId,setSelectedId]=useState(data.travelPlans[0]?.id||"");
+  const [destination,setDestination]=useState({place:"",country:""});
+  const [showTrip,setShowTrip]=useState(false);
+  const [tripForm,setTripForm]=useState({name:"",startDate:todayKey(),endDate:addDays(todayKey(),2)});
+  const [itinerary,setItinerary]=useState({day:"1",time:"09:00",content:""});
+  const [packingForm,setPackingForm]=useState({category:"其他杂物类",name:""});
+  const [templateForm,setTemplateForm]=useState({category:"其他杂物类",name:""});
+  const [showSpecial,setShowSpecial]=useState(false);
+  const [specialForm,setSpecialForm]=useState({title:"",date:todayKey(),kind:"节日" as SpecialDay["kind"],calendar:"公历" as SpecialDay["calendar"],lunarDate:"",reminderDays:"3"});
+  const [deleteTarget,setDeleteTarget]=useState<{kind:"destination"|"trip"|"special"|"template"|"itinerary"|"packing";id:string}|null>(null);
+  const [weather,setWeather]=useState<{temperature:number;code:number}|null>(null);
+  const active=data.travelPlans.find(x=>x.id===selectedId)||data.travelPlans[0];
+  useEffect(()=>{if(tab!=="local"||weather)return;fetch("https://api.open-meteo.com/v1/forecast?latitude=30.2741&longitude=120.1551&current=temperature_2m,weather_code&timezone=Asia%2FShanghai").then(r=>r.json()).then(j=>setWeather({temperature:j.current.temperature_2m,code:j.current.weather_code})).catch(()=>{})},[tab,weather]);
+  const addDestination=(e:FormEvent)=>{e.preventDefault();if(!destination.place.trim())return;patch(d=>({...d,destinations:[...d.destinations,{id:uid(),place:destination.place.trim(),country:destination.country.trim()||"待补充",visited:false,updatedAt:Date.now()}]}));setDestination({place:"",country:""})};
+  const addTrip=(e:FormEvent)=>{e.preventDefault();if(!tripForm.name.trim()||tripForm.endDate<tripForm.startDate)return;const id=uid();patch(d=>({...d,travelPlans:[...d.travelPlans,{id,name:tripForm.name.trim(),startDate:tripForm.startDate,endDate:tripForm.endDate,itinerary:[],packing:d.packingTemplate.map(x=>({...x,id:uid(),checked:false})),updatedAt:Date.now()}]}));setSelectedId(id);setTripForm({name:"",startDate:todayKey(),endDate:addDays(todayKey(),2)});setShowTrip(false)};
+  const updatePlan=(fn:(p:TravelPlan)=>TravelPlan)=>patch(d=>({...d,travelPlans:d.travelPlans.map(p=>p.id===active?.id?{...fn(p),updatedAt:Date.now()}:p)}));
+  const addItinerary=(e:FormEvent)=>{e.preventDefault();if(!active||!itinerary.content.trim())return;updatePlan(p=>({...p,itinerary:[...p.itinerary,{id:uid(),day:Math.max(1,Number(itinerary.day)||1),time:itinerary.time,content:itinerary.content.trim()}]}));setItinerary({...itinerary,content:""})};
+  const addPacking=(e:FormEvent)=>{e.preventDefault();if(!active||!packingForm.name.trim())return;updatePlan(p=>({...p,packing:[...p.packing,{id:uid(),category:packingForm.category,name:packingForm.name.trim(),checked:false}]}));setPackingForm({...packingForm,name:""})};
+  const addSpecial=(e:FormEvent)=>{e.preventDefault();if(!specialForm.title.trim())return;patch(d=>({...d,specialDays:[...d.specialDays,{id:uid(),title:specialForm.title.trim(),date:specialForm.date,kind:specialForm.kind,calendar:specialForm.calendar,lunarDate:specialForm.calendar==="农历"?specialForm.lunarDate.trim():undefined,reminderDays:Number(specialForm.reminderDays)||3,updatedAt:Date.now()}]}));setShowSpecial(false);setSpecialForm({title:"",date:todayKey(),kind:"节日",calendar:"公历",lunarDate:"",reminderDays:"3"})};
+  const remove=()=>{if(!deleteTarget)return;patch(d=>{
+    if(deleteTarget.kind==="destination")return {...d,destinations:d.destinations.filter(x=>x.id!==deleteTarget.id)};
+    if(deleteTarget.kind==="trip")return {...d,travelPlans:d.travelPlans.filter(x=>x.id!==deleteTarget.id)};
+    if(deleteTarget.kind==="special")return {...d,specialDays:d.specialDays.filter(x=>x.id!==deleteTarget.id)};
+    if(deleteTarget.kind==="template")return {...d,packingTemplate:d.packingTemplate.filter(x=>x.id!==deleteTarget.id)};
+    return {...d,travelPlans:d.travelPlans.map(p=>p.id===active?.id?{...p,itinerary:deleteTarget.kind==="itinerary"?p.itinerary.filter(x=>x.id!==deleteTarget.id):p.itinerary,packing:deleteTarget.kind==="packing"?p.packing.filter(x=>x.id!==deleteTarget.id):p.packing,updatedAt:Date.now()}:p)};
+  });if(deleteTarget.kind==="trip")setSelectedId("");setDeleteTarget(null)};
+  const done=active?.packing.filter(x=>x.checked).length||0,total=active?.packing.length||0;
+  const month=new Date().getMonth()+1;const rainy=weather?weather.code>=50:false;
+  const season=month>=3&&month<=5?"春日":month>=6&&month<=8?"夏日":month>=9&&month<=11?"秋日":"冬日";
+  const localIdeas=rainy?[
+    ["书店与咖啡","去天目里或运河边找一家书店，慢慢看书写手账。","室内 · 雨天友好"],
+    ["博物馆半日","选一座博物馆，再为自己安排一顿安静的晚餐。","室内 · 轻松"],
+    ["手作体验","尝试陶艺、银饰或花艺，让注意力回到双手。","室内 · 治愈"],
+  ]:[
+    ["九溪轻徒步",`${season}沿九溪烟树慢慢走，带水并留意防晒。`,"户外 · 低强度"],
+    ["西湖晨间散步","从北山街出发，避开人流，给自己一小时。","户外 · 免费"],
+    ["运河边看落日","沿桥西历史街区散步，再选一家小店吃晚饭。","户外 · 松弛"],
+  ];
+  return <div className="page travel-page">
+    <section className="travel-hero"><div><span className="eyebrow">MY LITTLE JOURNEYS</span><h1>把想去的远方，慢慢变成计划</h1><p>从目的地心愿、每日行程到打包清单，每一段期待都好好收进这里。</p></div><div className="travel-stamp"><b>{data.destinations.filter(x=>x.visited).length}</b><span>已抵达</span><small>{data.destinations.filter(x=>!x.visited).length} 个地方正在等你</small></div></section>
+    <nav className="growth-tabs travel-tabs"><button className={tab==="dreams"?"active":""} onClick={()=>setTab("dreams")}>目的地清单</button><button className={tab==="plans"?"active":""} onClick={()=>setTab("plans")}>旅行计划</button><button className={tab==="local"?"active":""} onClick={()=>setTab("local")}>杭州独处</button><button className={tab==="dates"?"active":""} onClick={()=>setTab("dates")}>特别日子</button></nav>
+    {tab==="dreams"&&<section className="travel-dreams"><div className="travel-section-head"><div><span className="eyebrow">DREAM DESTINATIONS</span><h2>总有一天，要亲自去看看</h2></div><p>去过的地方会留下温柔的勾选。</p></div><form className="destination-form" onSubmit={addDestination}><input value={destination.place} onChange={e=>setDestination({...destination,place:e.target.value})} placeholder="城市或目的地"/><input value={destination.country} onChange={e=>setDestination({...destination,country:e.target.value})} placeholder="国家 / 地区"/><button>＋ 添加</button></form><div className="destination-grid">{data.destinations.map(x=><article className={x.visited?"visited":""} key={x.id}><label><input type="checkbox" checked={x.visited} onChange={()=>patch(d=>({...d,destinations:d.destinations.map(y=>y.id===x.id?{...y,visited:!y.visited,updatedAt:Date.now()}:y)}))}/><i>{x.visited?"✓":"✈"}</i></label><div><span>{x.country}</span><h3>{x.place}</h3><small>{x.visited?"已经抵达过":"想去看看"}</small></div><button onClick={()=>setDeleteTarget({kind:"destination",id:x.id})}>×</button></article>)}</div></section>}
+    {tab==="plans"&&<section><div className="travel-section-head"><div><span className="eyebrow">TRIP PLANNER</span><h2>一场旅行，一份独立计划</h2></div><button onClick={()=>setShowTrip(true)}>＋ 新建旅行</button></div><div className="trip-layout"><aside className="trip-list">{data.travelPlans.map(p=><button className={active?.id===p.id?"active":""} key={p.id} onClick={()=>setSelectedId(p.id)}><i>✦</i><span><b>{p.name}</b><small>{displayDate(p.startDate)} — {displayDate(p.endDate)}</small></span></button>)}{!data.travelPlans.length&&<Empty text="还没有旅行计划，先写下第一段期待吧。"/>}</aside>{active&&<div className="trip-detail"><header><div><span className="eyebrow">UPCOMING TRIP</span><input value={active.name} onChange={e=>updatePlan(p=>({...p,name:e.target.value}))}/><p>{active.startDate} 至 {active.endDate} · 共 {dateDiff(active.startDate,active.endDate)+1} 天</p></div><button onClick={()=>setDeleteTarget({kind:"trip",id:active.id})}>删除计划</button></header><div className="trip-columns"><section><h3>每日行程</h3><form className="itinerary-form" onSubmit={addItinerary}><input type="number" min="1" value={itinerary.day} onChange={e=>setItinerary({...itinerary,day:e.target.value})}/><input type="time" value={itinerary.time} onChange={e=>setItinerary({...itinerary,time:e.target.value})}/><input value={itinerary.content} onChange={e=>setItinerary({...itinerary,content:e.target.value})} placeholder="添加行程内容"/><button>添加</button></form><div className="itinerary-list">{[...active.itinerary].sort((a,b)=>a.day-b.day||a.time.localeCompare(b.time)).map(x=><article key={x.id}><b>DAY {x.day}</b><time>{x.time}</time><input value={x.content} onChange={e=>updatePlan(p=>({...p,itinerary:p.itinerary.map(y=>y.id===x.id?{...y,content:e.target.value}:y)}))}/><button onClick={()=>setDeleteTarget({kind:"itinerary",id:x.id})}>×</button></article>)}</div></section><section className="packing-panel"><div className="packing-head"><div><h3>打包清单</h3><span>{done} / {total} 已装好</span></div><b>{total?Math.round(done/total*100):0}%</b></div><div className="packing-progress"><i style={{width:`${total?done/total*100:0}%`}}/></div><form className="packing-add" onSubmit={addPacking}><select value={packingForm.category} onChange={e=>setPackingForm({...packingForm,category:e.target.value})}>{Object.keys(packingGroups).map(x=><option key={x}>{x}</option>)}</select><input value={packingForm.name} onChange={e=>setPackingForm({...packingForm,name:e.target.value})} placeholder="添加物品"/><button>＋</button></form>{Object.keys(packingGroups).map(group=>{const items=active.packing.filter(x=>x.category===group);return items.length?<div className="packing-group" key={group}><h4>{group}</h4>{items.map(x=><label key={x.id}><input type="checkbox" checked={x.checked} onChange={()=>updatePlan(p=>({...p,packing:p.packing.map(y=>y.id===x.id?{...y,checked:!y.checked}:y)}))}/><i></i><input className={x.checked?"strike":""} value={x.name} onChange={e=>updatePlan(p=>({...p,packing:p.packing.map(y=>y.id===x.id?{...y,name:e.target.value}:y)}))}/><button onClick={()=>setDeleteTarget({kind:"packing",id:x.id})}>×</button></label>)}</div>:null})}</section></div></div>}</div><section className="template-panel"><div><h3>固定必备物品模板</h3><p>新建旅行时会自动带入；这里的修改不会覆盖已有旅行。</p></div><form onSubmit={e=>{e.preventDefault();if(!templateForm.name.trim())return;patch(d=>({...d,packingTemplate:[...d.packingTemplate,{id:uid(),category:templateForm.category,name:templateForm.name.trim(),checked:false}]}));setTemplateForm({...templateForm,name:""})}}><select value={templateForm.category} onChange={e=>setTemplateForm({...templateForm,category:e.target.value})}>{Object.keys(packingGroups).map(x=><option key={x}>{x}</option>)}</select><input value={templateForm.name} onChange={e=>setTemplateForm({...templateForm,name:e.target.value})} placeholder="新增固定物品"/><button>添加</button></form><div>{data.packingTemplate.map(x=><span key={x.id}>{x.name}<button onClick={()=>setDeleteTarget({kind:"template",id:x.id})}>×</button></span>)}</div></section></section>}
+    {tab==="local"&&<section><div className="local-weather"><div><span className="eyebrow">HANGZHOU · {season}</span><h2>{weather?`${weather.code>=50?"雨天":"晴好"} · ${weather.temperature}°C`:"按杭州当季推荐"}</h2><p>{weather?"已结合当前天气更新；无法联网时仍会提供季节建议。":"正在尝试获取无需账号的实时天气…"}</p></div><i>{rainy?"☂":"☼"}</i></div><div className="solo-grid">{localIdeas.map((x,i)=><article key={x[0]}><span>0{i+1} · {x[2]}</span><h3>{x[0]}</h3><p>{x[1]}</p><small>一个人也可以，把时间过得很漂亮。</small></article>)}</div></section>}
+    {tab==="dates"&&<section><div className="travel-section-head"><div><span className="eyebrow">SPECIAL DAYS</span><h2>值得期待的日子，不要错过</h2></div><button onClick={()=>setShowSpecial(true)}>＋ 添加特别日子</button></div><div className="special-grid">{[...data.specialDays].sort((a,b)=>a.date.localeCompare(b.date)).map(x=><article key={x.id}><i>{x.kind==="生日"?"🎂":x.kind==="演唱会"?"♫":x.kind==="折扣"?"％":"✦"}</i><div><span>{x.kind} · {x.calendar}{x.lunarDate?` ${x.lunarDate}`:""}</span><h3>{x.title}</h3><p>{displayDate(x.date)} · 提前 {x.reminderDays} 天提醒</p></div><button onClick={()=>setDeleteTarget({kind:"special",id:x.id})}>×</button></article>)}</div></section>}
+    {showTrip&&<Modal title="创建旅行计划" onClose={()=>setShowTrip(false)}><form className="editor-form" onSubmit={addTrip}><label>旅行名称<input value={tripForm.name} onChange={e=>setTripForm({...tripForm,name:e.target.value})} placeholder="例如：济州岛四日慢旅行" required/></label><div className="two-col"><label>出发日期<input type="date" value={tripForm.startDate} onChange={e=>setTripForm({...tripForm,startDate:e.target.value})}/></label><label>返程日期<input type="date" min={tripForm.startDate} value={tripForm.endDate} onChange={e=>setTripForm({...tripForm,endDate:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowTrip(false)}>取消</button><button>创建并带入清单</button></div></form></Modal>}
+    {showSpecial&&<Modal title="添加特别日子" onClose={()=>setShowSpecial(false)}><form className="editor-form" onSubmit={addSpecial}><label>名称<input value={specialForm.title} onChange={e=>setSpecialForm({...specialForm,title:e.target.value})} placeholder="生日、演唱会或折扣日" required/></label><div className="two-col"><label>类型<select value={specialForm.kind} onChange={e=>setSpecialForm({...specialForm,kind:e.target.value as SpecialDay["kind"]})}><option>节日</option><option>折扣</option><option>演唱会</option><option>生日</option></select></label><label>历法<select value={specialForm.calendar} onChange={e=>setSpecialForm({...specialForm,calendar:e.target.value as SpecialDay["calendar"]})}><option>公历</option><option>农历</option></select></label></div>{specialForm.calendar==="农历"&&<label>农历日期说明<input value={specialForm.lunarDate} onChange={e=>setSpecialForm({...specialForm,lunarDate:e.target.value})} placeholder="例如：八月初五"/></label>}<div className="two-col"><label>{specialForm.calendar==="农历"?"下一次公历日期":"日期"}<input type="date" value={specialForm.date} onChange={e=>setSpecialForm({...specialForm,date:e.target.value})}/></label><label>提前提醒天数<input type="number" min="0" value={specialForm.reminderDays} onChange={e=>setSpecialForm({...specialForm,reminderDays:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowSpecial(false)}>取消</button><button>保存日子</button></div></form></Modal>}
+    {deleteTarget&&<Modal title="确认删除这项内容吗？" onClose={()=>setDeleteTarget(null)}><p className="modal-copy">删除后会从当前设备和后续导出的 JSON 中移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTarget(null)}>先保留</button><button className="danger" onClick={remove}>确认删除</button></div></Modal>}
   </div>;
 }
 

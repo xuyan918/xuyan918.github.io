@@ -143,13 +143,9 @@ const weeklyPromos:Record<number,string[]> = {
   5:["茶颜悦色零食买四送一","罗森会员面包日","CoCo升杯日","茶百道会员免费升杯"]
 };
 const monthlyPromos:Record<number,string[]>={20:["古茗会员日"],8:["好想来会员88折","老婆大人会员日88折"],18:["德克士买一送一"]};
-const birthdayPromos=[
-  "茶颜悦色免费喝","肯德基会员“生日半价桶”券","麦当劳会员领免费小食","汉堡王领免费霸王鸡条","必胜客领免费6寸披萨","小龙坎火锅会员6折","哥老官6.66折","谭鸭血火锅6.88折","宜家任意消费领生日小蛋糕","满记甜品领甜品","茶颜悦色免费饮品券","喜茶领免费任意饮品","瑞幸咖啡当月4张5折券","星巴克玉星及以上会员当月领免费中杯饮品或指定蛋糕","霸王茶姬实付满16元可领冰箱贴","茶百道会员第二杯半价券","古茗会员8折券","沪上阿姨会员6折","爷爷不泡茶会员第二杯半价券及冰箱贴","茉莉奶白会员第二杯半价券及徽章","部分地区欢乐谷生日当天凭身份证免费入园"
-];
 const PROMO_SPECIAL_DAYS:SpecialDay[]=[
   ...Object.entries(weeklyPromos).flatMap(([weekdayNumber,names])=>names.map((title,i)=>promoDay(`w${weekdayNumber}-${i}`,title,{recurrence:"weekly",weekday:Number(weekdayNumber)}))),
   ...Object.entries(monthlyPromos).flatMap(([monthDay,names])=>names.map((title,i)=>promoDay(`m${monthDay}-${i}`,title,{recurrence:"monthly",monthDay:Number(monthDay)}))),
-  ...birthdayPromos.map((title,i)=>promoDay(`birthday-0918-${i}`,title,{recurrence:"yearly",month:9,monthDay:18})),
   promoDay("haidilao-0901","海底捞9月1日送30元代金券",{recurrence:"yearly",month:9,monthDay:1})
 ];
 const lunarParts=(date:string)=>{const parts=new Intl.DateTimeFormat("zh-CN-u-ca-chinese",{month:"numeric",day:"numeric"}).formatToParts(new Date(`${date}T12:00:00`));return {month:Number(parts.find(x=>x.type==="month")?.value),day:Number(parts.find(x=>x.type==="day")?.value)}};

@@ -22,6 +22,8 @@ type FinanceEntry = { id:string; type:"income"|"expense"; categoryId:string; amo
 type ShoppingItem = { id:string; name:string; price:number; purchased:boolean; updatedAt:number };
 type SavingsGoal = { id:string; name:string; target:number; saved:number; updatedAt:number };
 type FinanceSettings = { monthlyIncome?:number; updatedAt:number };
+type JobStatus = "感兴趣" | "已投递" | "已面试" | "已拒绝";
+type JobListing = { id:string; company:string; title:string; salary:string; companySize:number; location:string; jd:string; url:string; source:string; publishedAt:string; status:JobStatus; statusUpdatedAt:number; updatedAt:number };
 type WorkbenchData = {
   version: 1;
   exportedAt?: number;
@@ -43,6 +45,7 @@ type WorkbenchData = {
   shoppingItems: ShoppingItem[];
   savingsGoals: SavingsGoal[];
   financeSettings: FinanceSettings;
+  jobs: JobListing[];
 };
 
 const STORAGE_KEY = "bear-workbench-v1";
@@ -153,6 +156,12 @@ const phaseFourDefaults = (now=Date.now()) => ({
   financeSettings:{monthlyIncome:undefined,updatedAt:now},
 });
 
+const phaseFiveDefaults = (now=Date.now()) => ({
+  jobs:[
+    {id:"job-jiansheng",company:"浙江健盛集团",title:"RPA 工程师",salary:"8–12K · 13薪",companySize:1000,location:"杭州 · 萧山区",jd:"参与业务流程梳理与自动化开发，岗位关键词包含 RPA；适合继续积累企业级流程交付经验。",url:"https://mwenku.51job.com/hangzhou_jobs/202601/Python/",source:"前程无忧公开招聘页",publishedAt:"2026-07-29",status:"感兴趣" as JobStatus,statusUpdatedAt:now,updatedAt:now},
+  ] as JobListing[],
+});
+
 const seedData = (): WorkbenchData => {
   const today = todayKey();
   const tomorrow = new Date();
@@ -164,6 +173,7 @@ const seedData = (): WorkbenchData => {
     ...phaseTwoDefaults(now),
     ...phaseThreeDefaults(now),
     ...phaseFourDefaults(now),
+    ...phaseFiveDefaults(now),
     events: [
       { id: uid(), date: today, start: "09:30", end: "10:30", title: "整理本周 RPA 任务", categoryId: "work", updatedAt: now },
       { id: uid(), date: today, start: "18:30", end: "19:30", title: "普拉提课程", categoryId: "sport", updatedAt: now },
@@ -211,6 +221,7 @@ function useWorkbench() {
         const defaults = phaseTwoDefaults();
         const healthDefaults = phaseThreeDefaults();
         const financeDefaults = phaseFourDefaults();
+        const jobDefaults = phaseFiveDefaults();
         setData({
           ...parsed,
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
@@ -227,6 +238,7 @@ function useWorkbench() {
           shoppingItems: Array.isArray(parsed.shoppingItems) ? parsed.shoppingItems : financeDefaults.shoppingItems,
           savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : financeDefaults.savingsGoals,
           financeSettings: parsed.financeSettings || financeDefaults.financeSettings,
+          jobs: Array.isArray(parsed.jobs) ? parsed.jobs : jobDefaults.jobs,
         });
       } else setData(seedData());
     } catch {
@@ -324,6 +336,7 @@ export default function Home() {
         const defaults = phaseTwoDefaults();
         const healthDefaults = phaseThreeDefaults();
         const financeDefaults = phaseFourDefaults();
+        const jobDefaults = phaseFiveDefaults();
         setPendingImport({
           ...parsed,
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
@@ -340,6 +353,7 @@ export default function Home() {
           shoppingItems: Array.isArray(parsed.shoppingItems) ? parsed.shoppingItems : financeDefaults.shoppingItems,
           savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : financeDefaults.savingsGoals,
           financeSettings: parsed.financeSettings || financeDefaults.financeSettings,
+          jobs: Array.isArray(parsed.jobs) ? parsed.jobs : jobDefaults.jobs,
         });
         setImportMode("merge");
       } catch { alert("这个文件不是有效的小熊工作台数据。"); }
@@ -379,6 +393,7 @@ export default function Home() {
         shoppingItems: merge(current.shoppingItems, pendingImport.shoppingItems),
         savingsGoals: merge(current.savingsGoals, pendingImport.savingsGoals),
         financeSettings: pendingImport.financeSettings.updatedAt > current.financeSettings.updatedAt ? pendingImport.financeSettings : current.financeSettings,
+        jobs: merge(current.jobs, pendingImport.jobs),
       };
     });
     setPendingImport(null); setImportMode(null);
@@ -388,7 +403,7 @@ export default function Home() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand"><img src="/bears/app-bear.jpg" alt="" /><div><strong>小熊工作台</strong><span>认真生活，也要拥抱自己</span></div></div>
-        <nav>{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span>{["jobs","travel"].includes(n.id) && <em>规划中</em>}</button>)}</nav>
+        <nav>{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span>{n.id==="travel" && <em>规划中</em>}</button>)}</nav>
         <div className="sync-box"><span>✦ 数据只在本机保存</span><button onClick={exportJSON}>导出 JSON</button><button className="secondary" onClick={() => fileRef.current?.click()}>导入 JSON</button></div>
       </aside>
 
@@ -398,8 +413,9 @@ export default function Home() {
         {view === "growth" && <Growth data={data} patch={patch} />}
         {view === "health" && <Health data={data} patch={patch} />}
         {view === "finance" && <Finance data={data} patch={patch} />}
+        {view === "jobs" && <Jobs data={data} patch={patch} />}
         {view === "memos" && <Memos data={data} go={go} toggleTodo={toggleTodo} move={move} onAdd={() => setMemoModal(true)} onDelete={setDeleteTarget} patch={patch} />}
-        {!["home","calendar","growth","health","finance","memos"].includes(view) && <ComingSoon view={view} />}
+        {!["home","calendar","growth","health","finance","jobs","memos"].includes(view) && <ComingSoon view={view} />}
       </main>
 
       <nav className="mobile-nav">{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span></button>)}</nav>
@@ -735,6 +751,62 @@ function EventEditor({ item, date, data, patch, close }: { item: EventItem|null;
 function MemoEditor({ patch, close }: { patch:any; close:()=>void }) {
   const [text,setText]=useState(""); const submit=(e:FormEvent)=>{e.preventDefault();if(!text.trim())return;patch((d:WorkbenchData)=>({...d,memos:d.memos.map(m=>({...m,order:m.order+1})).concat({id:uid(),text:text.trim(),order:0,createdAt:Date.now(),updatedAt:Date.now()})}));close();};
   return <Modal title="写一张小纸条" onClose={close}><form className="editor-form" onSubmit={submit}><label>想记下什么？<textarea autoFocus value={text} onChange={e=>setText(e.target.value)} placeholder="突然想到…" rows={4}/></label><div className="modal-actions"><button type="button" className="secondary" onClick={close}>取消</button><button>收进备忘</button></div></form></Modal>;
+}
+
+function Jobs({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void}) {
+  const statuses:JobStatus[]=["感兴趣","已投递","已面试","已拒绝"];
+  const [keyword,setKeyword]=useState("RPA");
+  const [status,setStatus]=useState<JobStatus|"全部">("全部");
+  const [showAdd,setShowAdd]=useState(false);
+  const [deleteId,setDeleteId]=useState<string|null>(null);
+  const [form,setForm]=useState({company:"",title:"",salary:"",companySize:"",location:"杭州",jd:"",url:""});
+  const filtered=data.jobs.filter(j=>{
+    const text=`${j.title} ${j.jd}`.toLowerCase();
+    const words=keyword.toLowerCase().split(/[\s/、]+/).filter(Boolean);
+    return (!words.length||words.some(w=>text.includes(w)))&&j.companySize>100&&j.location.includes("杭州")&&(status==="全部"||j.status===status);
+  }).sort((a,b)=>b.updatedAt-a.updatedAt);
+  const addJob=(e:FormEvent)=>{
+    e.preventDefault(); const size=Number(form.companySize);
+    if(!form.company.trim()||!form.title.trim()||!form.jd.trim()||!Number.isFinite(size))return;
+    const url=/^https?:\/\//i.test(form.url)?form.url:"";
+    const now=Date.now();
+    patch(d=>({...d,jobs:[{id:uid(),company:form.company.trim(),title:form.title.trim(),salary:form.salary.trim()||"薪资面议",companySize:size,location:form.location.trim()||"杭州",jd:form.jd.trim(),url,source:"手动录入",publishedAt:todayKey(),status:"感兴趣",statusUpdatedAt:now,updatedAt:now},...d.jobs]}));
+    setForm({company:"",title:"",salary:"",companySize:"",location:"杭州",jd:"",url:""});setShowAdd(false);
+  };
+  const setJobStatus=(id:string,next:JobStatus)=>patch(d=>({...d,jobs:d.jobs.map(j=>j.id===id?{...j,status:next,statusUpdatedAt:Date.now(),updatedAt:Date.now()}:j)}));
+  return <div className="page jobs-page">
+    <section className="jobs-hero">
+      <div><span className="eyebrow">CAREER OPPORTUNITIES</span><h1>去遇见更适合你的机会</h1><p>聚焦杭州 · RPA / 影刀 · 100 人以上公司，所有追踪状态仅保存在本机。</p></div>
+      <div className="job-match"><i>✦</i><div><b>{filtered.length} 个匹配岗位</b><small>按你的期望自动筛选</small></div></div>
+    </section>
+    <div className="growth-tabs jobs-tabs">
+      {(["全部",...statuses] as const).map(s=><button key={s} className={status===s?"active":""} onClick={()=>setStatus(s)}>{s}<small>{s==="全部"?data.jobs.length:data.jobs.filter(j=>j.status===s).length}</small></button>)}
+    </div>
+    <section className="job-source-note">
+      <div><span className="eyebrow">PUBLIC JOB SOURCES</span><h2>公开岗位入口</h2><p>无需关联账号。岗位可能随时下线，公司规模与薪资请在投递前再次核验。</p></div>
+      <div><a href="https://m.zhipin.com/zhaopin/ca858bd04f5d99261HV-09m5GQ~~/" target="_blank" rel="noreferrer">查看 BOSS 公开搜索</a><a className="secondary" href="https://mwenku.51job.com/hangzhou_jobs/202601/Python/" target="_blank" rel="noreferrer">查看前程无忧公开页</a></div>
+    </section>
+    <div className="job-toolbar">
+      <label><span>⌕</span><input value={keyword} onChange={e=>setKeyword(e.target.value)} placeholder="搜索 RPA、影刀、AI Agent…"/></label>
+      <button onClick={()=>setShowAdd(true)}>＋ 录入岗位</button>
+    </div>
+    <section className="job-rule">
+      <span>当前筛选</span><b>JD 含“{keyword||"不限"}”</b><b>公司人数 ＞ 100</b><b>杭州</b>
+    </section>
+    <section className="job-grid">
+      {filtered.map(job=><article className="job-card" key={job.id}>
+        <header><div className="company-mark">{job.company.slice(0,1)}</div><div><span>{job.company}</span><h2>{job.title}</h2></div><button onClick={()=>setDeleteId(job.id)} aria-label={`删除${job.title}`}>×</button></header>
+        <div className="job-meta"><b>{job.salary}</b><span>杭州</span><span>{job.companySize>=1000?"1000 人以上":`${job.companySize}–499 人`}</span></div>
+        <p>{job.jd}</p>
+        <div className="match-reasons"><span>✓ RPA 方向</span><span>✓ 规模符合</span><span>✓ 杭州岗位</span></div>
+        <footer><div><small>{job.source}</small><time>更新于 {job.publishedAt}</time></div><select value={job.status} onChange={e=>setJobStatus(job.id,e.target.value as JobStatus)} aria-label="更新求职状态">{statuses.map(s=><option key={s}>{s}</option>)}</select>{job.url?<a href={job.url} target="_blank" rel="noreferrer">查看 / 投递 →</a>:<span className="no-link">暂无链接</span>}</footer>
+      </article>)}
+      {!filtered.length&&<Empty text="暂时没有符合全部条件的岗位，换个关键词或录入一条试试吧。"/>}
+    </section>
+    <section className="job-pipeline"><div><span className="eyebrow">APPLICATION TRACKER</span><h2>我的求职进度</h2></div>{statuses.map(s=><article key={s}><b>{data.jobs.filter(j=>j.status===s).length}</b><span>{s}</span><i style={{width:`${Math.max(8,data.jobs.length?data.jobs.filter(j=>j.status===s).length/data.jobs.length*100:0)}%`}}/></article>)}</section>
+    {showAdd&&<Modal title="录入一个新岗位" onClose={()=>setShowAdd(false)}><form className="editor-form job-editor" onSubmit={addJob}><div className="two-col"><label>公司名称<input value={form.company} onChange={e=>setForm({...form,company:e.target.value})} required/></label><label>岗位名称<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} required/></label></div><div className="two-col"><label>薪资范围<input value={form.salary} onChange={e=>setForm({...form,salary:e.target.value})} placeholder="如 10–15K"/></label><label>公司人数<input type="number" min="1" value={form.companySize} onChange={e=>setForm({...form,companySize:e.target.value})} required/></label></div><label>工作地点<input value={form.location} onChange={e=>setForm({...form,location:e.target.value})}/></label><label>JD 摘要<textarea rows={4} value={form.jd} onChange={e=>setForm({...form,jd:e.target.value})} placeholder="粘贴包含 RPA 或影刀的岗位描述…" required/></label><label>投递链接（可选）<input type="url" value={form.url} onChange={e=>setForm({...form,url:e.target.value})} placeholder="https://"/></label><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowAdd(false)}>取消</button><button>保存岗位</button></div></form></Modal>}
+    {deleteId&&<Modal title="删除这个岗位吗？" onClose={()=>setDeleteId(null)}><p className="modal-copy">岗位和当前投递状态都会从本机移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteId(null)}>先保留</button><button className="danger" onClick={()=>{patch(d=>({...d,jobs:d.jobs.filter(j=>j.id!==deleteId)}));setDeleteId(null)}}>确认删除</button></div></Modal>}
+  </div>;
 }
 
 function ComingSoon({view}:{view:View}) {

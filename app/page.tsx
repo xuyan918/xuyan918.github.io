@@ -17,6 +17,11 @@ type WorkoutPlan = { id: string; weekday: number; title: string; intensity: "轻
 type HealthLog = { id: string; date: string; weight?: number; trained: boolean; workout?: string; foodNote: string; calories?: number; updatedAt: number };
 type Recipe = { id: string; meal: "早餐" | "午餐" | "晚餐"; name: string; ingredients: string; calories: number; custom?: boolean; updatedAt: number };
 type HealthSettings = { privacy: boolean; cycleLength: number; periodLength: number; updatedAt: number };
+type FinanceCategory = { id:string; type:"income"|"expense"; name:string; color:string; updatedAt:number };
+type FinanceEntry = { id:string; type:"income"|"expense"; categoryId:string; amount:number; note:string; date:string; time:string; updatedAt:number };
+type ShoppingItem = { id:string; name:string; price:number; purchased:boolean; updatedAt:number };
+type SavingsGoal = { id:string; name:string; target:number; saved:number; updatedAt:number };
+type FinanceSettings = { monthlyIncome?:number; updatedAt:number };
 type WorkbenchData = {
   version: 1;
   exportedAt?: number;
@@ -33,6 +38,11 @@ type WorkbenchData = {
   healthLogs: HealthLog[];
   recipes: Recipe[];
   healthSettings: HealthSettings;
+  financeCategories: FinanceCategory[];
+  financeEntries: FinanceEntry[];
+  shoppingItems: ShoppingItem[];
+  savingsGoals: SavingsGoal[];
+  financeSettings: FinanceSettings;
 };
 
 const STORAGE_KEY = "bear-workbench-v1";
@@ -129,6 +139,20 @@ const phaseThreeDefaults = (now = Date.now()) => {
   };
 };
 
+const phaseFourDefaults = (now=Date.now()) => ({
+  financeCategories:[
+    ...["工资","生活费","红包","年终奖","理财","卖闲置","礼金","借入"].map((name,i)=>({id:`in-${i}`,type:"income" as const,name,color:["#D48A98","#E6B07A","#E59A9A","#B994CF","#7FAF92","#83A9D2","#D7A47B","#9E9A96"][i],updatedAt:now})),
+    ...["餐饮","购物","日用","交通","蔬菜","饮品","水果","零食","运动","娱乐","游戏","电影票","养花","好朋友","饰品","通讯","服饰","美容","房租","家庭","社交","旅行","喝酒","数码","快递","医疗","书籍","学习","宠物","水费","电费","燃气费","礼金","礼物","办公","维修","彩票","红包","还款","借出"].map((name,i)=>({id:`out-${i}`,type:"expense" as const,name,color:["#D77F8C","#E6AA78","#D5B38D","#80A9CC","#86B696","#D6A36F","#C99BAD","#C7A47A","#82A8A0","#A78CC2"][i%10],updatedAt:now})),
+  ] as FinanceCategory[],
+  financeEntries:[] as FinanceEntry[],
+  shoppingItems:[
+    {id:uid(),name:"降噪耳机",price:1299,purchased:false,updatedAt:now},
+    {id:uid(),name:"普拉提运动服",price:399,purchased:false,updatedAt:now},
+  ],
+  savingsGoals:[{id:uid(),name:"安心储备金",target:30000,saved:8000,updatedAt:now}],
+  financeSettings:{monthlyIncome:undefined,updatedAt:now},
+});
+
 const seedData = (): WorkbenchData => {
   const today = todayKey();
   const tomorrow = new Date();
@@ -139,6 +163,7 @@ const seedData = (): WorkbenchData => {
     categories,
     ...phaseTwoDefaults(now),
     ...phaseThreeDefaults(now),
+    ...phaseFourDefaults(now),
     events: [
       { id: uid(), date: today, start: "09:30", end: "10:30", title: "整理本周 RPA 任务", categoryId: "work", updatedAt: now },
       { id: uid(), date: today, start: "18:30", end: "19:30", title: "普拉提课程", categoryId: "sport", updatedAt: now },
@@ -185,6 +210,7 @@ function useWorkbench() {
         const parsed = JSON.parse(saved);
         const defaults = phaseTwoDefaults();
         const healthDefaults = phaseThreeDefaults();
+        const financeDefaults = phaseFourDefaults();
         setData({
           ...parsed,
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
@@ -196,6 +222,11 @@ function useWorkbench() {
           healthLogs: Array.isArray(parsed.healthLogs) ? parsed.healthLogs : healthDefaults.healthLogs,
           recipes: Array.isArray(parsed.recipes) ? parsed.recipes : healthDefaults.recipes,
           healthSettings: parsed.healthSettings || healthDefaults.healthSettings,
+          financeCategories: Array.isArray(parsed.financeCategories) ? parsed.financeCategories : financeDefaults.financeCategories,
+          financeEntries: Array.isArray(parsed.financeEntries) ? parsed.financeEntries : financeDefaults.financeEntries,
+          shoppingItems: Array.isArray(parsed.shoppingItems) ? parsed.shoppingItems : financeDefaults.shoppingItems,
+          savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : financeDefaults.savingsGoals,
+          financeSettings: parsed.financeSettings || financeDefaults.financeSettings,
         });
       } else setData(seedData());
     } catch {
@@ -292,6 +323,7 @@ export default function Home() {
         if (parsed.version !== 1 || !Array.isArray(parsed.events) || !Array.isArray(parsed.todos) || !Array.isArray(parsed.memos)) throw new Error();
         const defaults = phaseTwoDefaults();
         const healthDefaults = phaseThreeDefaults();
+        const financeDefaults = phaseFourDefaults();
         setPendingImport({
           ...parsed,
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
@@ -303,6 +335,11 @@ export default function Home() {
           healthLogs: Array.isArray(parsed.healthLogs) ? parsed.healthLogs : healthDefaults.healthLogs,
           recipes: Array.isArray(parsed.recipes) ? parsed.recipes : healthDefaults.recipes,
           healthSettings: parsed.healthSettings || healthDefaults.healthSettings,
+          financeCategories: Array.isArray(parsed.financeCategories) ? parsed.financeCategories : financeDefaults.financeCategories,
+          financeEntries: Array.isArray(parsed.financeEntries) ? parsed.financeEntries : financeDefaults.financeEntries,
+          shoppingItems: Array.isArray(parsed.shoppingItems) ? parsed.shoppingItems : financeDefaults.shoppingItems,
+          savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : financeDefaults.savingsGoals,
+          financeSettings: parsed.financeSettings || financeDefaults.financeSettings,
         });
         setImportMode("merge");
       } catch { alert("这个文件不是有效的小熊工作台数据。"); }
@@ -337,6 +374,11 @@ export default function Home() {
         healthLogs: merge(current.healthLogs, pendingImport.healthLogs),
         recipes: merge(current.recipes, pendingImport.recipes),
         healthSettings: pendingImport.healthSettings.updatedAt > current.healthSettings.updatedAt ? pendingImport.healthSettings : current.healthSettings,
+        financeCategories: merge(current.financeCategories, pendingImport.financeCategories),
+        financeEntries: merge(current.financeEntries, pendingImport.financeEntries),
+        shoppingItems: merge(current.shoppingItems, pendingImport.shoppingItems),
+        savingsGoals: merge(current.savingsGoals, pendingImport.savingsGoals),
+        financeSettings: pendingImport.financeSettings.updatedAt > current.financeSettings.updatedAt ? pendingImport.financeSettings : current.financeSettings,
       };
     });
     setPendingImport(null); setImportMode(null);
@@ -346,7 +388,7 @@ export default function Home() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand"><img src="/bears/app-bear.jpg" alt="" /><div><strong>小熊工作台</strong><span>认真生活，也要拥抱自己</span></div></div>
-        <nav>{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span>{["finance","jobs","travel"].includes(n.id) && <em>规划中</em>}</button>)}</nav>
+        <nav>{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span>{["jobs","travel"].includes(n.id) && <em>规划中</em>}</button>)}</nav>
         <div className="sync-box"><span>✦ 数据只在本机保存</span><button onClick={exportJSON}>导出 JSON</button><button className="secondary" onClick={() => fileRef.current?.click()}>导入 JSON</button></div>
       </aside>
 
@@ -355,8 +397,9 @@ export default function Home() {
         {view === "calendar" && <Calendar data={data} dates={dates} selectedDate={selectedDate} setSelectedDate={setSelectedDate} category={category} toggleTodo={toggleTodo} move={move} onAdd={() => setEventModal("new")} onEdit={setEventModal} onDelete={setDeleteTarget} patch={patch} />}
         {view === "growth" && <Growth data={data} patch={patch} />}
         {view === "health" && <Health data={data} patch={patch} />}
+        {view === "finance" && <Finance data={data} patch={patch} />}
         {view === "memos" && <Memos data={data} go={go} toggleTodo={toggleTodo} move={move} onAdd={() => setMemoModal(true)} onDelete={setDeleteTarget} patch={patch} />}
-        {!["home","calendar","growth","health","memos"].includes(view) && <ComingSoon view={view} />}
+        {!["home","calendar","growth","health","finance","memos"].includes(view) && <ComingSoon view={view} />}
       </main>
 
       <nav className="mobile-nav">{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span></button>)}</nav>
@@ -522,6 +565,95 @@ function Health({ data, patch }: { data:WorkbenchData; patch:(fn:(d:WorkbenchDat
       <p className="health-disclaimer">健康与周期建议仅用于日常自我照顾，不用于诊断或治疗；若有持续不适或周期明显异常，请及时咨询医生。</p>
     </section>}
   </div>;
+}
+
+function TrendCanvas({ points }:{ points:{label:string;income:number;expense:number}[] }) {
+  const ref=useRef<HTMLCanvasElement>(null);
+  useEffect(()=>{
+    const canvas=ref.current;if(!canvas)return;
+    const ratio=window.devicePixelRatio||1;const width=canvas.clientWidth;const height=canvas.clientHeight;
+    canvas.width=width*ratio;canvas.height=height*ratio;const ctx=canvas.getContext("2d");if(!ctx)return;ctx.scale(ratio,ratio);ctx.clearRect(0,0,width,height);
+    const max=Math.max(1,...points.flatMap(p=>[p.income,p.expense]));const padX=20,padY=18,chartW=width-padX*2,chartH=height-padY*2;
+    const draw=(key:"income"|"expense",color:string)=>{ctx.beginPath();points.forEach((p,i)=>{const x=padX+(points.length===1?0:i/(points.length-1))*chartW;const y=padY+chartH-(p[key]/max)*chartH;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.strokeStyle=color;ctx.lineWidth=2.2;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();points.forEach((p,i)=>{const x=padX+(points.length===1?0:i/(points.length-1))*chartW;const y=padY+chartH-(p[key]/max)*chartH;ctx.beginPath();ctx.arc(x,y,2.8,0,Math.PI*2);ctx.fillStyle=color;ctx.fill()})};
+    ctx.strokeStyle="#eee3df";ctx.lineWidth=1;for(let i=0;i<4;i++){const y=padY+i*chartH/3;ctx.beginPath();ctx.moveTo(padX,y);ctx.lineTo(width-padX,y);ctx.stroke()}
+    draw("income","#84ad91");draw("expense","#d27d8b");
+  },[points]);
+  return <canvas className="trend-canvas" ref={ref} aria-label="收支趋势图"/>;
+}
+
+function Finance({ data, patch }:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void}) {
+  const [range,setRange]=useState<"day"|"week"|"month"|"year">("month");
+  const [tab,setTab]=useState<"ledger"|"shopping"|"advice">("ledger");
+  const [quick,setQuick]=useState("");
+  const [editor,setEditor]=useState<FinanceEntry|null|"new">(null);
+  const [categoryForm,setCategoryForm]=useState({name:"",type:"expense" as "income"|"expense",color:"#D48793"});
+  const [showCategory,setShowCategory]=useState(false);
+  const [shopForm,setShopForm]=useState({name:"",price:""});
+  const [goalForm,setGoalForm]=useState({name:"",target:"",saved:""});
+  const [incomeInput,setIncomeInput]=useState("");
+  const [deleteTarget,setDeleteTarget]=useState<{kind:"entry"|"shop"|"goal"|"category";id:string}|null>(null);
+  const today=todayKey();
+  const rangeStart=useMemo(()=>{
+    const d=new Date();
+    if(range==="week")d.setDate(d.getDate()-6);
+    if(range==="month")d.setDate(1);
+    if(range==="year"){d.setMonth(0);d.setDate(1)}
+    return dayKey(d);
+  },[range]);
+  const scoped=data.financeEntries.filter(e=>e.date>=rangeStart&&e.date<=today);
+  const expenseTotal=scoped.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0);
+  const incomeTotal=scoped.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0);
+  const expenseGroups=Object.entries(scoped.filter(e=>e.type==="expense").reduce((acc,e)=>{acc[e.categoryId]=(acc[e.categoryId]||0)+e.amount;return acc},{} as Record<string,number>)).sort((a,b)=>b[1]-a[1]);
+  const colors=expenseGroups.map(([id])=>data.financeCategories.find(c=>c.id===id)?.color||"#aaa");
+  let angle=0;const donut=expenseGroups.length?`conic-gradient(${expenseGroups.map(([,value],i)=>{const from=angle;angle+=value/expenseTotal*360;return `${colors[i]} ${from}deg ${angle}deg`}).join(",")})`:"#f1e8e5";
+  const trend=useMemo(()=>{
+    const count=range==="year"?12:range==="month"?Math.min(new Date().getDate(),14):7;const result:{label:string;income:number;expense:number}[]=[];
+    for(let i=count-1;i>=0;i--){const d=new Date();if(range==="year"){d.setMonth(d.getMonth()-i);d.setDate(1)}else d.setDate(d.getDate()-i);const key=range==="year"?`${d.getFullYear()}-${pad(d.getMonth()+1)}`:dayKey(d);const matches=data.financeEntries.filter(e=>range==="year"?e.date.startsWith(key):e.date===key);result.push({label:range==="year"?`${d.getMonth()+1}月`:`${d.getMonth()+1}/${d.getDate()}`,income:matches.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0),expense:matches.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0)})}return result;
+  },[data.financeEntries,range]);
+  const parseEntry=()=>{
+    const text=quick.trim();if(!text)return;
+    const d=new Date();if(/昨天/.test(text))d.setDate(d.getDate()-1);else if(/前天/.test(text))d.setDate(d.getDate()-2);
+    let time=`${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;const tm=text.match(/(?:上午|中午|下午|晚上)?\s*(\d{1,2})[点:：](\d{1,2})?/);if(tm){let h=Number(tm[1]);if(/下午|晚上/.test(tm[0])&&h<12)h+=12;if(/中午/.test(tm[0])&&h<11)h+=12;time=`${pad(h)}:${pad(Number(tm[2]||0))}`}
+    const nums=[...text.matchAll(/(\d+(?:\.\d{1,2})?)\s*(?:元|块)?/g)].map(m=>Number(m[1]));const amount=nums[nums.length-1]||0;if(!amount)return;
+    const isIncome=/收入|工资|奖金|红包|卖闲置|收到|转入|生活费/.test(text);const map:[RegExp,string][]=[[/饭|吃|餐|肉片|外卖|早餐|午餐|晚餐/,"餐饮"],[/奶茶|咖啡|茶|饮料/,"饮品"],[/地铁|打车|公交|滴滴/,"交通"],[/房租|租金/,"房租"],[/普拉提|健身|瑜伽/,"运动"],[/书|课程|学习/,"学习"],[/衣服|裙|鞋|服饰/,"服饰"],[/护肤|化妆|美容/,"美容"],[/工资/,"工资"],[/红包/,"红包"],[/闲置/,"卖闲置"],[/旅行|酒店|机票/,"旅行"],[/快递/,"快递"],[/医院|药|医疗/,"医疗"],[/游戏/,"游戏"]];
+    const name=map.find(([key])=>key.test(text))?.[1]||(isIncome?"其他收入":"其他");let cat=data.financeCategories.find(c=>c.type===(isIncome?"income":"expense")&&c.name===name);if(!cat)cat=data.financeCategories.find(c=>c.type===(isIncome?"income":"expense"));
+    patch(x=>({...x,financeEntries:[...x.financeEntries,{id:uid(),type:isIncome?"income":"expense",categoryId:cat!.id,amount,note:text.replace(/昨天|前天/g,"").trim(),date:dayKey(d),time,updatedAt:Date.now()}]}));setQuick("");
+  };
+  const addShopping=(e:FormEvent)=>{e.preventDefault();if(!shopForm.name.trim())return;patch(d=>({...d,shoppingItems:[...d.shoppingItems,{id:uid(),name:shopForm.name.trim(),price:Number(shopForm.price)||0,purchased:false,updatedAt:Date.now()}]}));setShopForm({name:"",price:""})};
+  const addGoal=(e:FormEvent)=>{e.preventDefault();if(!goalForm.name.trim())return;patch(d=>({...d,savingsGoals:[...d.savingsGoals,{id:uid(),name:goalForm.name.trim(),target:Number(goalForm.target)||0,saved:Number(goalForm.saved)||0,updatedAt:Date.now()}]}));setGoalForm({name:"",target:"",saved:""})};
+  const saveCategory=(e:FormEvent)=>{e.preventDefault();if(!categoryForm.name.trim())return;patch(d=>({...d,financeCategories:[...d.financeCategories,{id:uid(),...categoryForm,name:categoryForm.name.trim(),updatedAt:Date.now()}]}));setShowCategory(false);setCategoryForm({name:"",type:"expense",color:"#D48793"})};
+  const remove=()=>{if(!deleteTarget)return;patch(d=>deleteTarget.kind==="entry"?{...d,financeEntries:d.financeEntries.filter(x=>x.id!==deleteTarget.id)}:deleteTarget.kind==="shop"?{...d,shoppingItems:d.shoppingItems.filter(x=>x.id!==deleteTarget.id)}:deleteTarget.kind==="goal"?{...d,savingsGoals:d.savingsGoals.filter(x=>x.id!==deleteTarget.id)}:{...d,financeCategories:d.financeCategories.filter(x=>x.id!==deleteTarget.id)});setDeleteTarget(null)};
+  const unbought=data.shoppingItems.filter(x=>!x.purchased).reduce((s,x)=>s+x.price,0);
+  const adviceRatio=data.financeSettings.monthlyIncome?Math.min(60,Math.max(10,Math.round((data.financeSettings.monthlyIncome-expenseTotal)/data.financeSettings.monthlyIncome*100))):null;
+  return <div className="page finance-page">
+    <header className="finance-hero"><div><span className="eyebrow">MY MONEY GARDEN</span><h1>让每一笔钱，都去想去的地方</h1><p>认真记录，轻松看见生活的选择与积累。</p></div><div className="privacy-income"><i>♡</i><span>收入隐私保护已开启<small>所有收入金额默认隐藏</small></span></div></header>
+    <nav className="growth-tabs finance-tabs"><button className={tab==="ledger"?"active":""} onClick={()=>setTab("ledger")}>记账看板</button><button className={tab==="shopping"?"active":""} onClick={()=>setTab("shopping")}>购物与攒钱</button><button className={tab==="advice"?"active":""} onClick={()=>setTab("advice")}>理财建议</button></nav>
+    {tab==="ledger"&&<section>
+      <div className="finance-toolbar"><div className="range-tabs">{([["day","当天"],["week","本周"],["month","本月"],["year","本年"]] as const).map(([id,label])=><button className={range===id?"active":""} key={id} onClick={()=>setRange(id)}>{label}</button>)}</div><div><button className="secondary" onClick={()=>setShowCategory(true)}>管理分类</button><button onClick={()=>setEditor("new")}>＋ 记一笔</button></div></div>
+      <div className="finance-summary"><article className="income"><span>收入</span><h2>¥ ••••••</h2><p>已记录 {scoped.filter(e=>e.type==="income").length} 笔 · 金额已隐藏</p></article><article className="expense"><span>支出</span><h2>¥ {expenseTotal.toFixed(2)}</h2><p>共 {scoped.filter(e=>e.type==="expense").length} 笔</p></article><article className="balance"><span>收支状态</span><h2>{incomeTotal>=expenseTotal?"有结余":"需留意"}</h2><p>不展示具体收入和结余金额</p></article></div>
+      <div className="chart-grid"><article className="donut-card"><div className="finance-card-head"><h2>支出分类</h2><span>百分比</span></div><div className="donut-wrap"><div className="donut" style={{background:donut}}><i><b>{expenseGroups.length}</b><small>个分类</small></i></div><div className="donut-legend">{expenseGroups.slice(0,6).map(([id,value],i)=><span key={id}><i style={{background:colors[i]}}></i><b>{data.financeCategories.find(c=>c.id===id)?.name}</b><small>{expenseTotal?Math.round(value/expenseTotal*100):0}%</small></span>)}{!expenseGroups.length&&<p>记下支出后，这里会长出一朵分类小花。</p>}</div></div></article><article className="trend-card"><div className="finance-card-head"><h2>收支趋势</h2><span><i className="green"></i>收入 <i className="pink"></i>支出</span></div><TrendCanvas points={trend}/><div className="trend-labels">{trend.map((p,i)=><span key={i}>{p.label}</span>)}</div></article></div>
+      <div className="quick-ledger"><span>✦</span><input value={quick} onChange={e=>setQuick(e.target.value)} onKeyDown={e=>e.key==="Enter"&&parseEntry()} placeholder="试试说：昨天中午吃了水煮肉片花了30" /><button onClick={parseEntry}>自动记账</button></div>
+      <section className="ledger-timeline"><div className="finance-card-head"><h2>账目时间线</h2><span>同一天按时间从早到晚</span></div>{[...new Set(scoped.map(e=>e.date))].sort((a,b)=>b.localeCompare(a)).map(date=><div className="ledger-day" key={date}><header><b>{displayDate(date)}</b><span>{weekday(date)}</span></header>{scoped.filter(e=>e.date===date).sort((a,b)=>a.time.localeCompare(b.time)).map(entry=>{const cat=data.financeCategories.find(c=>c.id===entry.categoryId);return <article key={entry.id}><time>{entry.time}</time><i style={{background:cat?.color}}>{entry.type==="income"?"＋":"－"}</i><button onClick={()=>setEditor(entry)}><b>{cat?.name||"未分类"}</b><span>{entry.note}</span></button><strong className={entry.type}>{entry.type==="income"?"¥ ••••":`- ¥ ${entry.amount.toFixed(2)}`}</strong><button className="more" onClick={()=>setDeleteTarget({kind:"entry",id:entry.id})}>×</button></article>})}</div>)}{!scoped.length&&<Empty text="这一段时间还没有账目，第一笔也可以很轻松。" />}</section>
+      {editor&&<FinanceEditor item={editor==="new"?null:editor} data={data} patch={patch} close={()=>setEditor(null)}/>}
+      {showCategory&&<Modal title="添加收支分类" onClose={()=>setShowCategory(false)}><form className="editor-form" onSubmit={saveCategory}><label>类型<select value={categoryForm.type} onChange={e=>setCategoryForm({...categoryForm,type:e.target.value as "income"|"expense"})}><option value="expense">支出</option><option value="income">收入</option></select></label><label>分类名称<input value={categoryForm.name} onChange={e=>setCategoryForm({...categoryForm,name:e.target.value})} required/></label><label>颜色<input type="color" value={categoryForm.color} onChange={e=>setCategoryForm({...categoryForm,color:e.target.value})}/></label><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowCategory(false)}>取消</button><button>保存分类</button></div></form></Modal>}
+    </section>}
+    {tab==="shopping"&&<section className="shopping-layout">
+      <article className="shopping-panel"><div className="finance-card-head"><div><span className="eyebrow">WISH LIST</span><h2>想买的小东西</h2></div><b>还需攒 ¥ {unbought.toFixed(2)}</b></div><form className="shop-form" onSubmit={addShopping}><input value={shopForm.name} onChange={e=>setShopForm({...shopForm,name:e.target.value})} placeholder="想买什么？"/><input type="number" value={shopForm.price} onChange={e=>setShopForm({...shopForm,price:e.target.value})} placeholder="价格"/><button>添加</button></form><div className="shopping-list">{data.shoppingItems.map(item=><div key={item.id}><label><input type="checkbox" checked={item.purchased} onChange={()=>patch(d=>({...d,shoppingItems:d.shoppingItems.map(x=>x.id===item.id?{...x,purchased:!x.purchased,updatedAt:Date.now()}:x)}))}/><i></i></label><input className={item.purchased?"strike":""} value={item.name} onChange={e=>patch(d=>({...d,shoppingItems:d.shoppingItems.map(x=>x.id===item.id?{...x,name:e.target.value,updatedAt:Date.now()}:x)}))}/><b>¥ {item.price.toFixed(2)}</b><button onClick={()=>setDeleteTarget({kind:"shop",id:item.id})}>×</button></div>)}</div></article>
+      <article className="savings-panel"><div className="finance-card-head"><div><span className="eyebrow">SAVING PLAN</span><h2>攒钱计划</h2></div></div><form className="goal-money-form" onSubmit={addGoal}><input value={goalForm.name} onChange={e=>setGoalForm({...goalForm,name:e.target.value})} placeholder="目标名称"/><input type="number" value={goalForm.target} onChange={e=>setGoalForm({...goalForm,target:e.target.value})} placeholder="目标金额"/><input type="number" value={goalForm.saved} onChange={e=>setGoalForm({...goalForm,saved:e.target.value})} placeholder="已存"/><button>＋</button></form>{data.savingsGoals.map(goal=>{const pct=goal.target?Math.min(100,Math.round(goal.saved/goal.target*100)):0;return <section className="saving-goal" key={goal.id}><header><input value={goal.name} onChange={e=>patch(d=>({...d,savingsGoals:d.savingsGoals.map(x=>x.id===goal.id?{...x,name:e.target.value,updatedAt:Date.now()}:x)}))}/><button onClick={()=>setDeleteTarget({kind:"goal",id:goal.id})}>×</button></header><div className="saving-numbers"><span>已完成 <b>{pct}%</b></span><span>目标 ¥ {goal.target.toFixed(0)}</span></div><div className="saving-progress"><i style={{width:`${pct}%`}}/></div><label>当前已存<input type="number" value={goal.saved} onChange={e=>patch(d=>({...d,savingsGoals:d.savingsGoals.map(x=>x.id===goal.id?{...x,saved:Number(e.target.value),updatedAt:Date.now()}:x)}))}/></label></section>})}</article>
+    </section>}
+    {tab==="advice"&&<section className="advice-layout">
+      <article className="income-setting"><span className="eyebrow">PRIVATE INPUT</span><h2>收入设置</h2><p>录入后只用于计算比例建议。保存后，页面不会回显具体数字。</p><div><input type="password" inputMode="decimal" value={incomeInput} onChange={e=>setIncomeInput(e.target.value)} placeholder={data.financeSettings.monthlyIncome?"当前收入已安全保存":"输入月收入"}/><button onClick={()=>{if(Number(incomeInput)>0){patch(d=>({...d,financeSettings:{monthlyIncome:Number(incomeInput),updatedAt:Date.now()}}));setIncomeInput("")}}}>保存</button></div><small>数据仅保存在此设备，不会上传。</small></article>
+      <article className="advice-cards"><div><i>01</i><span><h3>先建立安全垫</h3><p>优先准备可覆盖 3–6 个月必要支出的应急资金，并放在流动性较好的位置。</p></span></div><div><i>02</i><span><h3>量入为出</h3><p>{adviceRatio?`结合当前记录，可先尝试把约 ${adviceRatio}% 的收入用于储蓄与长期目标，再按生活变化调整。`:"录入收入并坚持记账后，工作台会给出不显示金额的储蓄比例参考。"}</p></span></div><div><i>03</i><span><h3>风险与自己匹配</h3><p>购买金融产品前，了解风险等级、期限、费用和流动性；不使用借款进行投资。</p></span></div><div><i>04</i><span><h3>保持分散与长期</h3><p>先保障日常现金流，再根据风险承受能力考虑低风险配置，避免把资金集中在单一产品。</p></span></div></article>
+      <p className="finance-disclaimer">以上为一般性财务整理与风险教育，不构成投资建议；产品选择请结合自身情况并通过正规金融机构核实。</p>
+    </section>}
+    {deleteTarget&&<Modal title="确认删除这条财务记录吗？" onClose={()=>setDeleteTarget(null)}><p className="modal-copy">删除后会影响相应统计，小熊再帮你确认一次。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTarget(null)}>先保留</button><button className="danger" onClick={remove}>确认删除</button></div></Modal>}
+  </div>;
+}
+
+function FinanceEditor({item,data,patch,close}:{item:FinanceEntry|null;data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void;close:()=>void}) {
+  const [form,setForm]=useState({type:item?.type||"expense" as "income"|"expense",categoryId:item?.categoryId||data.financeCategories.find(c=>c.type==="expense")!.id,amount:item?.amount?String(item.amount):"",note:item?.note||"",date:item?.date||todayKey(),time:item?.time||`${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`});
+  const submit=(e:FormEvent)=>{e.preventDefault();if(!(Number(form.amount)>0))return;patch(d=>({...d,financeEntries:item?d.financeEntries.map(x=>x.id===item.id?{...x,...form,amount:Number(form.amount),updatedAt:Date.now()}:x):[...d.financeEntries,{...form,id:uid(),amount:Number(form.amount),updatedAt:Date.now()}]}));close()};
+  return <Modal title={item?"编辑账目":"手动记一笔"} onClose={close}><form className="editor-form" onSubmit={submit}><div className="two-col"><label>收支类型<select value={form.type} onChange={e=>{const type=e.target.value as "income"|"expense";setForm({...form,type,categoryId:data.financeCategories.find(c=>c.type===type)!.id})}}><option value="expense">支出</option><option value="income">收入</option></select></label><label>分类<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}>{data.financeCategories.filter(c=>c.type===form.type).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label></div><label>金额<input type="number" min=".01" step=".01" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} required/></label><label>备注<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})}/></label><div className="two-col"><label>日期<input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}/></label><label>时间<input type="time" value={form.time} onChange={e=>setForm({...form,time:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={close}>取消</button><button>保存账目</button></div></form></Modal>;
 }
 
 function Growth({ data, patch }: { data: WorkbenchData; patch: (fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {

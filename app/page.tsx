@@ -494,6 +494,7 @@ function Dashboard({ data, go, toggleTodo, patch }: { data: WorkbenchData; go: (
   const [todoText,setTodoText]=useState("");
   const [editingTodo,setEditingTodo]=useState<string|null>(null);
   const [deleteTodo,setDeleteTodo]=useState<string|null>(null);
+  const [homeWeather,setHomeWeather]=useState<{temperature:number;apparent:number;code:number}|null>(null);
   const todays = data.todos.filter((t) => t.date === today);
   const todayStudy = data.checkins.filter((c) => c.date === today);
   const careerCount = data.skills.filter((s) => s.lastCheckin === today).length;
@@ -509,6 +510,17 @@ function Dashboard({ data, go, toggleTodo, patch }: { data: WorkbenchData; go: (
     {label:"健身",done:fitnessCount,total:1,target:"health" as View,detail:fitnessCount?"训练已完成":"等待打卡"},
     {label:"职业",done:careerCount,total:data.skills.length,target:"growth" as View,detail:`${careerCount} / ${data.skills.length} 项`},
   ];
+  useEffect(()=>{fetch("https://api.open-meteo.com/v1/forecast?latitude=30.2741&longitude=120.1551&current=temperature_2m,apparent_temperature,weather_code&timezone=Asia%2FShanghai").then(r=>{if(!r.ok)throw new Error();return r.json()}).then(j=>setHomeWeather({temperature:j.current.temperature_2m,apparent:j.current.apparent_temperature,code:j.current.weather_code})).catch(()=>{})},[]);
+  const monthPrefix=today.slice(0,7);
+  const workoutCount=data.healthLogs.filter(x=>x.date.startsWith(monthPrefix)&&x.trained).length;
+  const learningDays=new Set([...data.checkins.filter(x=>x.date.startsWith(monthPrefix)).map(x=>x.date),...data.skills.map(x=>x.lastCheckin).filter((x):x is string=>Boolean(x?.startsWith(monthPrefix)))]).size;
+  const savingTarget=data.savingsGoals.reduce((sum,x)=>sum+x.target,0);
+  const savingDone=data.savingsGoals.reduce((sum,x)=>sum+Math.min(x.saved,x.target),0);
+  const savingProgress=savingTarget?Math.min(100,Math.round(savingDone/savingTarget*100)):0;
+  const phase=data.healthSettings.privacy?"隐私模式":cycleInfo(data).phase;
+  const weatherLead=homeWeather?homeWeather.code>=50?`杭州今天有雨、体感约 ${Math.round(homeWeather.apparent)}°C，记得带伞；`:`杭州今天体感约 ${Math.round(homeWeather.apparent)}°C，适合适度活动；`:"今天按自己的体感安排节奏；";
+  const phaseTip=phase==="月经期"?"以保暖、补水和轻柔活动为主。":phase==="卵泡期"?"能量通常在回升，可以循序增加活动量。":phase==="排卵期"?"状态活跃时也要充分热身、注意关节稳定。":phase==="黄体期"?"给睡眠和稳定饮食多一点优先级。":"规律吃饭、适量活动，也记得留一点休息时间。";
+  const healthTip=`${weatherLead}${phaseTip}`;
   const addTodo=(e:FormEvent)=>{e.preventDefault();if(!todoText.trim())return;patch(x=>({...x,todos:[...x.todos,{id:uid(),date:today,text:todoText.trim(),done:false,order:todays.length,updatedAt:Date.now()}]}));setTodoText("")};
   return <div className="page dashboard">
     <header className="topbar"><div><p>{d.getFullYear()}年{d.getMonth()+1}月{d.getDate()}日 · {weekday(today)}</p><h1>早上好，今天也慢慢来 <span>♡</span></h1></div><button className="avatar" aria-label="个人设置"><img src="/bears/bear-grid.jpg" alt="" /></button></header>
@@ -520,6 +532,10 @@ function Dashboard({ data, go, toggleTodo, patch }: { data: WorkbenchData; go: (
       <div className="overview-card lilac"><div className="card-title"><span>今日打卡</span><i>✦</i></div><div className="checkin-row">{checkinMetrics.map(x=>{const progress=x.total?x.done/x.total:0;const state=progress===0?"":progress>=1?"done":"partial";return <button key={x.label} className={state} onClick={()=>go(x.target)}><i style={{"--check-progress":`${progress*360}deg`} as React.CSSProperties}>{progress>=1?"✓":progress>0?<b>{Math.round(progress*100)}</b>:""}</i><span><b>{x.label}</b><small>{x.detail}</small></span></button>})}</div></div>
     </section>
     {reminders.length>0&&<button className="dashboard-reminder" onClick={()=>go("travel")}><span>♡ 未来三天提醒</span><div>{reminders.map(x=><b key={x.id}>{x.kind==="生日"?"🎂":"✦"} {x.title}<small>{x.date===today?"今天":`${dateDiff(today,x.date)} 天后`}</small></b>)}</div><i>去看看 →</i></button>}
+    <section className="dashboard-insights">
+      <button className="month-status" onClick={()=>go("finance")}><div className="insight-head"><div><span className="eyebrow">THIS MONTH</span><h2>本月状态</h2></div><small>不展示收入及储蓄金额</small></div><div className="month-metrics"><article><i className="saving-ring" style={{"--saving-progress":`${savingProgress*3.6}deg`} as React.CSSProperties}><b>{savingProgress}%</b></i><span>储蓄进度</span></article><article><b>{workoutCount}<small> 次</small></b><span>运动完成</span></article><article><b>{learningDays}<small> 天</small></b><span>学习记录</span></article></div></button>
+      <button className="health-glance" onClick={()=>go("health")}><div className="insight-head"><div><span className="eyebrow">TODAY&apos;S WELLNESS</span><h2>今日健康提示</h2></div><i>{homeWeather?.code&&homeWeather.code>=50?"☂":"♡"}</i></div><p>{healthTip}</p><span>查看完整健康建议 →</span></button>
+    </section>
     <section className="today-panel"><div className="panel-head"><div><span className="eyebrow">TODAY&apos;S TO-DO</span><h2>今日待办</h2><p>可以直接添加、勾选或修改文字。</p></div><span className="todo-count">{todays.filter(x=>x.done).length} / {todays.length} 完成</span></div><form className="dashboard-add-todo" onSubmit={addTodo}><input value={todoText} onChange={e=>setTodoText(e.target.value)} placeholder="添加一个临时待办…"/><button>＋ 添加</button></form>{todays.length?<div className="dashboard-todos">{todays.sort((a,b)=>a.order-b.order).map(t=><div className="dashboard-todo-row" key={t.id}><label aria-label={`切换${t.text}完成状态`}><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)}/><i></i></label><input className={t.done?"strike":""} value={t.text} onFocus={()=>setEditingTodo(t.id)} onChange={e=>patch(x=>({...x,todos:x.todos.map(y=>y.id===t.id?{...y,text:e.target.value,updatedAt:Date.now()}:y)}))} onBlur={()=>setEditingTodo(null)} aria-label="修改待办内容"/><button className={editingTodo===t.id?"editing":""} onClick={()=>setDeleteTodo(t.id)} aria-label="删除待办">×</button></div>)}</div>:<Empty text="今天还没有待办，先写下一件最想完成的小事吧。"/>}</section>
     {deleteTodo&&<Modal title="删除这个临时待办吗？" onClose={()=>setDeleteTodo(null)}><p className="modal-copy">它也会同时从日历和备忘中的 To-do 汇总里移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTodo(null)}>先保留</button><button className="danger" onClick={()=>{patch(x=>({...x,todos:x.todos.filter(y=>y.id!==deleteTodo)}));setDeleteTodo(null)}}>确认删除</button></div></Modal>}
   </div>;

@@ -29,3 +29,4 @@
 @media(max-width:760px){.dashboard-insights{grid-template-columns:1fr}}
 @media(max-width:560px){.dashboard-insights{gap:12px}.month-status,.health-glance{padding:17px}.insight-head>small{max-width:105px;text-align:right}.health-glance p{font-size:12px}.month-metrics article>b{font-size:23px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+.dashboard-primary-todos{margin:0 0 16px}

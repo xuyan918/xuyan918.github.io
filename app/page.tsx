@@ -317,6 +317,8 @@ function Empty({ text }: { text: string }) {
 export default function Home() {
   const [data, setData] = useWorkbench();
   const [view, setView] = useState<View>("home");
+  const [growthStartTab,setGrowthStartTab]=useState<"path"|"learn"|"goals">("path");
+  const [healthStartTab,setHealthStartTab]=useState<"cycle"|"fitness"|"food"|"care">("cycle");
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [eventModal, setEventModal] = useState<EventItem | "new" | null>(null);
   const [memoModal, setMemoModal] = useState(false);
@@ -343,6 +345,7 @@ export default function Home() {
 
   const patch = (fn: (draft: WorkbenchData) => WorkbenchData) => setData((old) => old ? fn(old) : old);
   const go = (next: View, date?: string) => { if (date) setSelectedDate(date); setView(next); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const goSection=(next:"growth"|"health",tab:"learn"|"fitness"|"path")=>{if(next==="growth")setGrowthStartTab(tab==="learn"?"learn":"path");else setHealthStartTab("fitness");go(next)};
   const category = (id: string) => data.categories.find((c) => c.id === id) || data.categories[0];
 
   const toggleTodo = (id: string) => patch((d) => ({ ...d, todos: d.todos.map((t) => t.id === id ? { ...t, done: !t.done, updatedAt: Date.now() } : t) }));
@@ -465,10 +468,10 @@ export default function Home() {
       </aside>
 
       <main className="content">
-        {view === "home" && <Dashboard data={data} go={go} toggleTodo={toggleTodo} patch={patch} />}
+        {view === "home" && <Dashboard data={data} go={go} goSection={goSection} toggleTodo={toggleTodo} patch={patch} />}
         {view === "calendar" && <Calendar data={data} dates={dates} selectedDate={selectedDate} setSelectedDate={setSelectedDate} category={category} toggleTodo={toggleTodo} move={move} onAdd={() => setEventModal("new")} onEdit={setEventModal} onDelete={setDeleteTarget} patch={patch} />}
-        {view === "growth" && <Growth data={data} patch={patch} />}
-        {view === "health" && <Health data={data} patch={patch} />}
+        {view === "growth" && <Growth data={data} patch={patch} initialTab={growthStartTab} />}
+        {view === "health" && <Health data={data} patch={patch} initialTab={healthStartTab} />}
         {view === "finance" && <Finance data={data} patch={patch} />}
         {view === "jobs" && <Jobs data={data} patch={patch} />}
         {view === "travel" && <Travel data={data} patch={patch} />}
@@ -488,7 +491,7 @@ export default function Home() {
   );
 }
 
-function Dashboard({ data, go, toggleTodo, patch }: { data: WorkbenchData; go: (v: View, d?: string) => void; toggleTodo: (id: string) => void; patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {
+function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: WorkbenchData; go: (v: View, d?: string) => void; goSection:(v:"growth"|"health",tab:"learn"|"fitness"|"path")=>void; toggleTodo: (id: string) => void; patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {
   const today = todayKey();
   const d = new Date();
   const [todoText,setTodoText]=useState("");
@@ -506,9 +509,9 @@ function Dashboard({ data, go, toggleTodo, patch }: { data: WorkbenchData; go: (
   const reminders=data.specialDays.filter(x=>{const days=dateDiff(today,x.date);return days>=0&&days<=Math.max(3,x.reminderDays)}).sort((a,b)=>a.date.localeCompare(b.date));
   const greeting = greetings[Math.floor((d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate()) % greetings.length)];
   const checkinMetrics=[
-    {label:"学习",done:new Set(todayStudy.map(x=>x.trackId)).size,total:data.learningTracks.length,target:"growth" as View,detail:`${todayStudy.length} / ${data.learningTracks.length} 项`},
-    {label:"健身",done:fitnessCount,total:1,target:"health" as View,detail:fitnessCount?"训练已完成":"等待打卡"},
-    {label:"职业",done:careerCount,total:data.skills.length,target:"growth" as View,detail:`${careerCount} / ${data.skills.length} 项`},
+    {label:"学习",done:new Set(todayStudy.map(x=>x.trackId)).size,total:data.learningTracks.length,target:"growth" as const,tab:"learn" as const,detail:`${todayStudy.length} / ${data.learningTracks.length} 项`},
+    {label:"健身",done:fitnessCount,total:1,target:"health" as const,tab:"fitness" as const,detail:fitnessCount?"训练已完成":"等待打卡"},
+    {label:"职业",done:careerCount,total:data.skills.length,target:"growth" as const,tab:"path" as const,detail:`${careerCount} / ${data.skills.length} 项`},
   ];
   useEffect(()=>{fetch("https://api.open-meteo.com/v1/forecast?latitude=30.2741&longitude=120.1551&current=temperature_2m,apparent_temperature,weather_code&timezone=Asia%2FShanghai").then(r=>{if(!r.ok)throw new Error();return r.json()}).then(j=>setHomeWeather({temperature:j.current.temperature_2m,apparent:j.current.apparent_temperature,code:j.current.weather_code})).catch(()=>{})},[]);
   const monthPrefix=today.slice(0,7);
@@ -526,17 +529,17 @@ function Dashboard({ data, go, toggleTodo, patch }: { data: WorkbenchData; go: (
     <header className="topbar"><div><p>{d.getFullYear()}年{d.getMonth()+1}月{d.getDate()}日 · {weekday(today)}</p><h1>早上好，今天也慢慢来 <span>♡</span></h1></div><button className="avatar" aria-label="个人设置"><img src="/bears/bear-grid.jpg" alt="" /></button></header>
     <section className="hero"><div className="hero-copy"><span className="eyebrow">TODAY&apos;S LITTLE NOTE</span><blockquote>“{greeting}”</blockquote><p>— 来自今天的小熊</p></div><img src="/bears/app-bear.jpg" alt="戴着蓝色蝴蝶结的水彩小熊" /></section>
     <div className="section-title"><div><span>今日概览</span><h2>把重要的事，轻轻接住</h2></div><button className="text-btn" onClick={() => go("calendar", today)}>查看今日日程 →</button></div>
+    <section className="today-panel dashboard-primary-todos"><div className="panel-head"><div><span className="eyebrow">TODAY&apos;S TO-DO</span><h2>今日待办</h2><p>可以直接添加、勾选或修改文字。</p></div><span className="todo-count">{todays.filter(x=>x.done).length} / {todays.length} 完成</span></div><form className="dashboard-add-todo" onSubmit={addTodo}><input value={todoText} onChange={e=>setTodoText(e.target.value)} placeholder="添加一个临时待办…"/><button>＋ 添加</button></form>{todays.length?<div className="dashboard-todos">{todays.sort((a,b)=>a.order-b.order).map(t=><div className="dashboard-todo-row" key={t.id}><label aria-label={`切换${t.text}完成状态`}><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)}/><i></i></label><input className={t.done?"strike":""} value={t.text} onFocus={()=>setEditingTodo(t.id)} onChange={e=>patch(x=>({...x,todos:x.todos.map(y=>y.id===t.id?{...y,text:e.target.value,updatedAt:Date.now()}:y)}))} onBlur={()=>setEditingTodo(null)} aria-label="修改待办内容"/><button className={editingTodo===t.id?"editing":""} onClick={()=>setDeleteTodo(t.id)} aria-label="删除待办">×</button></div>)}</div>:<Empty text="今天还没有待办，先写下一件最想完成的小事吧。"/>}</section>
     <section className="overview-grid">
       <button className="overview-card pink next-event-card" onClick={() => go("calendar", today)}><div className="card-title"><span>下一项日程</span><i>◷</i></div>{nextEvent?<><strong>{nextEvent.start}</strong><h3>{nextEvent.title}</h3><p>{nextEvent.start}—{nextEvent.end} · 点击查看今天的完整安排</p></>:<><strong>—</strong><h3>今天没有日程</h3><p>留一点空白，也是一种认真生活。</p></>}</button>
       <button className="overview-card cream" onClick={() => go("memos")}><div className="card-title"><span>临时备忘</span><i>✎</i></div>{latest.length ? <ul>{latest.map(m=><li key={m.id}>• {m.text}</li>)}</ul> : <p>还没有小纸条</p>}<span className="card-link">打开备忘 →</span></button>
-      <div className="overview-card lilac"><div className="card-title"><span>今日打卡</span><i>✦</i></div><div className="checkin-row">{checkinMetrics.map(x=>{const progress=x.total?x.done/x.total:0;const state=progress===0?"":progress>=1?"done":"partial";return <button key={x.label} className={state} onClick={()=>go(x.target)}><i style={{"--check-progress":`${progress*360}deg`} as React.CSSProperties}>{progress>=1?"✓":progress>0?<b>{Math.round(progress*100)}</b>:""}</i><span><b>{x.label}</b><small>{x.detail}</small></span></button>})}</div></div>
+      <div className="overview-card lilac"><div className="card-title"><span>今日打卡</span><i>✦</i></div><div className="checkin-row">{checkinMetrics.map(x=>{const progress=x.total?x.done/x.total:0;const state=progress===0?"":progress>=1?"done":"partial";return <button key={x.label} className={state} onClick={()=>goSection(x.target,x.tab)}><i style={{"--check-progress":`${progress*360}deg`} as React.CSSProperties}>{progress>=1?"✓":progress>0?<b>{Math.round(progress*100)}</b>:""}</i><span><b>{x.label}</b><small>{x.detail}</small></span></button>})}</div></div>
     </section>
     {reminders.length>0&&<button className="dashboard-reminder" onClick={()=>go("travel")}><span>♡ 未来三天提醒</span><div>{reminders.map(x=><b key={x.id}>{x.kind==="生日"?"🎂":"✦"} {x.title}<small>{x.date===today?"今天":`${dateDiff(today,x.date)} 天后`}</small></b>)}</div><i>去看看 →</i></button>}
     <section className="dashboard-insights">
       <button className="month-status" onClick={()=>go("finance")}><div className="insight-head"><div><span className="eyebrow">THIS MONTH</span><h2>本月状态</h2></div><small>不展示收入及储蓄金额</small></div><div className="month-metrics"><article><i className="saving-ring" style={{"--saving-progress":`${savingProgress*3.6}deg`} as React.CSSProperties}><b>{savingProgress}%</b></i><span>储蓄进度</span></article><article><b>{workoutCount}<small> 次</small></b><span>运动完成</span></article><article><b>{learningDays}<small> 天</small></b><span>学习记录</span></article></div></button>
       <button className="health-glance" onClick={()=>go("health")}><div className="insight-head"><div><span className="eyebrow">TODAY&apos;S WELLNESS</span><h2>今日健康提示</h2></div><i>{homeWeather?.code&&homeWeather.code>=50?"☂":"♡"}</i></div><p>{healthTip}</p><span>查看完整健康建议 →</span></button>
     </section>
-    <section className="today-panel"><div className="panel-head"><div><span className="eyebrow">TODAY&apos;S TO-DO</span><h2>今日待办</h2><p>可以直接添加、勾选或修改文字。</p></div><span className="todo-count">{todays.filter(x=>x.done).length} / {todays.length} 完成</span></div><form className="dashboard-add-todo" onSubmit={addTodo}><input value={todoText} onChange={e=>setTodoText(e.target.value)} placeholder="添加一个临时待办…"/><button>＋ 添加</button></form>{todays.length?<div className="dashboard-todos">{todays.sort((a,b)=>a.order-b.order).map(t=><div className="dashboard-todo-row" key={t.id}><label aria-label={`切换${t.text}完成状态`}><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)}/><i></i></label><input className={t.done?"strike":""} value={t.text} onFocus={()=>setEditingTodo(t.id)} onChange={e=>patch(x=>({...x,todos:x.todos.map(y=>y.id===t.id?{...y,text:e.target.value,updatedAt:Date.now()}:y)}))} onBlur={()=>setEditingTodo(null)} aria-label="修改待办内容"/><button className={editingTodo===t.id?"editing":""} onClick={()=>setDeleteTodo(t.id)} aria-label="删除待办">×</button></div>)}</div>:<Empty text="今天还没有待办，先写下一件最想完成的小事吧。"/>}</section>
     {deleteTodo&&<Modal title="删除这个临时待办吗？" onClose={()=>setDeleteTodo(null)}><p className="modal-copy">它也会同时从日历和备忘中的 To-do 汇总里移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTodo(null)}>先保留</button><button className="danger" onClick={()=>{patch(x=>({...x,todos:x.todos.filter(y=>y.id!==deleteTodo)}));setDeleteTodo(null)}}>确认删除</button></div></Modal>}
   </div>;
 }
@@ -586,8 +589,8 @@ function Memos({ data, go, toggleTodo, move, onAdd, onDelete, patch }: any) {
   <button className="bear-fab inner" onClick={onAdd}><img src="/bears/app-bear.jpg" alt="" /><span>记一下</span></button></div>;
 }
 
-function Health({ data, patch }: { data:WorkbenchData; patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {
-  const [tab,setTab]=useState<"cycle"|"fitness"|"food"|"care">("cycle");
+function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void; initialTab?:"cycle"|"fitness"|"food"|"care" }) {
+  const [tab,setTab]=useState<"cycle"|"fitness"|"food"|"care">(initialTab);
   const [periodForm,setPeriodForm]=useState({start:todayKey(),end:todayKey()});
   const [showPeriod,setShowPeriod]=useState(false);
   const [deletePeriod,setDeletePeriod]=useState<string|null>(null);
@@ -761,8 +764,8 @@ function FinanceEditor({item,data,patch,close}:{item:FinanceEntry|null;data:Work
   return <Modal title={item?"编辑账目":"手动记一笔"} onClose={close}><form className="editor-form" onSubmit={submit}><div className="two-col"><label>收支类型<select value={form.type} onChange={e=>{const type=e.target.value as "income"|"expense";setForm({...form,type,categoryId:data.financeCategories.find(c=>c.type===type)!.id})}}><option value="expense">支出</option><option value="income">收入</option></select></label><label>分类<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}>{data.financeCategories.filter(c=>c.type===form.type).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label></div><label>金额<input type="number" min=".01" step=".01" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} required/></label><label>备注<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})}/></label><div className="two-col"><label>日期<input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}/></label><label>时间<input type="time" value={form.time} onChange={e=>setForm({...form,time:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={close}>取消</button><button>保存账目</button></div></form></Modal>;
 }
 
-function Growth({ data, patch }: { data: WorkbenchData; patch: (fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {
-  const [tab,setTab]=useState<"path"|"learn"|"goals">("path");
+function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch: (fn:(d:WorkbenchData)=>WorkbenchData)=>void; initialTab?:"path"|"learn"|"goals" }) {
+  const [tab,setTab]=useState<"path"|"learn"|"goals">(initialTab);
   const [openSkill,setOpenSkill]=useState<string>("agent");
   const [openTrack,setOpenTrack]=useState<string>("ielts");
   const [sourceText,setSourceText]=useState("");

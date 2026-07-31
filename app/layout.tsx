@@ -4,8 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "小熊工作台",
   description: "离线优先的个人日程、待办与备忘工作台",
-  manifest: "/manifest.webmanifest",
-  icons: { icon: "/bears/app-bear.jpg", apple: "/bears/app-bear.jpg" },
+  manifest: "/manifest.webmanifest?v=2",
+  icons: {
+    icon: [{ url: "/icons/icon-192.png?v=2", type: "image/png", sizes: "192x192" }],
+    apple: [{ url: "/icons/apple-touch-icon.png?v=2", type: "image/png", sizes: "180x180" }],
+  },
   appleWebApp: { capable: true, statusBarStyle: "default", title: "小熊工作台" },
   openGraph: {
     title: "小熊工作台",

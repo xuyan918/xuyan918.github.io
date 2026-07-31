@@ -526,6 +526,7 @@ export default function Home() {
   const [growthStartTab,setGrowthStartTab]=useState<"path"|"learn"|"goals">("path");
   const [healthStartTab,setHealthStartTab]=useState<"cycle"|"fitness"|"food"|"care">("cycle");
   const [financeStartTab,setFinanceStartTab]=useState<"ledger"|"shopping"|"advice">("ledger");
+  const [catStartId,setCatStartId]=useState("");
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [eventModal, setEventModal] = useState<EventItem | "new" | null>(null);
   const [memoModal, setMemoModal] = useState(false);
@@ -708,7 +709,7 @@ export default function Home() {
       </aside>
 
       <main className="content">
-        {view === "home" && <Dashboard data={data} go={go} goSection={goSection} toggleTodo={toggleTodo} patch={patch} />}
+        {view === "home" && <Dashboard data={data} go={go} goSection={goSection} openCat={(id)=>{setCatStartId(id);go("cats")}} toggleTodo={toggleTodo} patch={patch} />}
         {view === "calendar" && <Calendar data={data} dates={dates} selectedDate={selectedDate} setSelectedDate={setSelectedDate} category={category} toggleTodo={toggleTodo} move={move} onAdd={() => setEventModal("new")} onEdit={setEventModal} onDelete={setDeleteTarget} patch={patch} />}
         {view === "growth" && <Growth data={data} patch={patch} initialTab={growthStartTab} />}
         {view === "health" && <Health data={data} patch={patch} initialTab={healthStartTab} />}
@@ -716,7 +717,7 @@ export default function Home() {
         {view === "jobs" && <Jobs data={data} patch={patch} />}
         {view === "travel" && <Travel data={data} patch={patch} />}
         {view === "memos" && <Memos data={data} go={go} toggleTodo={toggleTodo} move={move} onAdd={() => setMemoModal(true)} onDelete={setDeleteTarget} patch={patch} />}
-        {view === "cats" && <Cats data={data} patch={patch} />}
+        {view === "cats" && <Cats data={data} patch={patch} initialCatId={catStartId} />}
         {!["home","calendar","growth","health","finance","jobs","travel","memos","cats"].includes(view) && <ComingSoon view={view} />}
       </main>
 
@@ -732,7 +733,7 @@ export default function Home() {
   );
 }
 
-function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: WorkbenchData; go: (v: View, d?: string) => void; goSection:(v:"growth"|"health"|"finance",tab:"learn"|"fitness"|"path"|"care"|"shopping")=>void; toggleTodo: (id: string) => void; patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {
+function Dashboard({ data, go, goSection, openCat, toggleTodo, patch }: { data: WorkbenchData; go: (v: View, d?: string) => void; goSection:(v:"growth"|"health"|"finance",tab:"learn"|"fitness"|"path"|"care"|"shopping")=>void; openCat:(id:string)=>void; toggleTodo: (id: string) => void; patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {
   const today = todayKey();
   const d = new Date();
   const [todoText,setTodoText]=useState("");
@@ -798,7 +799,7 @@ function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: Workbench
       <section className="month-status"><div className="insight-head"><div><span className="eyebrow">THIS MONTH</span><h2>本月状态</h2></div></div><div className="month-metrics"><button onClick={()=>goSection("finance","shopping")}><i className="saving-ring" style={{"--saving-progress":`${savingProgress*3.6}deg`} as React.CSSProperties}><b>{savingProgress}%</b></i><span>储蓄进度</span></button><button onClick={()=>goSection("health","fitness")}><b>{workoutCount}<small> 次</small></b><span>运动完成</span></button><button onClick={()=>goSection("growth","learn")}><b>{learningDays}<small> 天</small></b><span>学习记录</span></button></div></section>
       <button className="health-glance" onClick={()=>goSection("health","care")}><div className="insight-head"><div><span className="eyebrow">TODAY&apos;S WELLNESS</span><h2>今日健康提示</h2></div><i>{homeWeather?.code&&homeWeather.code>=50?"☂":"♡"}</i></div><p>{healthTip}</p><span>查看保养建议 →</span></button>
     </section>
-    <section className="home-cats">{homeCats.length?homeCats.map(homeCat=>{const care=data.catCare.filter(x=>x.catId===homeCat.id&&x.date===today);const latestWeight=[...data.catWeights].filter(x=>x.catId===homeCat.id).sort((a,b)=>b.date.localeCompare(a.date))[0];const reminder=[...data.catHealth].filter(x=>x.catId===homeCat.id&&!x.done&&x.date>=today).sort((a,b)=>a.date.localeCompare(b.date))[0];return <button className="home-cat-card" key={homeCat.id} onClick={()=>go("cats")}><div className="cat-home-avatar">{homeCat.photo?<img src={homeCat.photo} alt={homeCat.name}/>:<span>🐾</span>}</div><div><span className="eyebrow">MY LITTLE CAT</span><h2>{homeCat.name}的今天</h2><p>{reminder?`下一项：${displayDate(reminder.date)} ${reminder.title}`:"今天没有临近的健康提醒"}</p></div><div className="cat-home-metrics"><b>{care.filter(x=>x.done).length}/{care.length}<small> 今日照护</small></b><b>{latestWeight?`${latestWeight.weight} kg`:"—"}<small> 最近体重</small></b></div><i>记录今天 →</i></button>}):<button className="home-cat-card empty-cat" onClick={()=>go("cats")}><div className="cat-home-avatar"><span>🐾</span></div><div><span className="eyebrow">MY LITTLE CAT</span><h2>猫咪今日</h2><p>建立猫咪档案，开始记录一起生活的每一天。</p></div><i>开始记录 →</i></button>}</section>
+    <section className="home-cats">{homeCats.length?homeCats.map(homeCat=>{const care=data.catCare.filter(x=>x.catId===homeCat.id&&x.date===today);const latestWeight=[...data.catWeights].filter(x=>x.catId===homeCat.id).sort((a,b)=>b.date.localeCompare(a.date))[0];const reminder=[...data.catHealth].filter(x=>x.catId===homeCat.id&&!x.done&&x.date>=today).sort((a,b)=>a.date.localeCompare(b.date))[0];return <button className="home-cat-card" key={homeCat.id} onClick={()=>openCat(homeCat.id)}><div className="cat-home-avatar">{homeCat.photo?<img src={homeCat.photo} alt={homeCat.name}/>:<span>🐾</span>}</div><div><span className="eyebrow">MY LITTLE CAT</span><h2>{homeCat.name}的今天</h2><p>{reminder?`下一项：${displayDate(reminder.date)} ${reminder.title}`:"今天没有临近的健康提醒"}</p></div><div className="cat-home-metrics"><b>{care.filter(x=>x.done).length}/{care.length}<small> 今日照护</small></b><b>{latestWeight?`${latestWeight.weight} kg`:"—"}<small> 最近体重</small></b></div><i>记录今天 →</i></button>}):<button className="home-cat-card empty-cat" onClick={()=>go("cats")}><div className="cat-home-avatar"><span>🐾</span></div><div><span className="eyebrow">MY LITTLE CAT</span><h2>猫咪今日</h2><p>建立猫咪档案，开始记录一起生活的每一天。</p></div><i>开始记录 →</i></button>}</section>
     {showPromoReminders&&<Modal title="未来三天 · 商家优惠活动" onClose={()=>setShowPromoReminders(false)}><div className="home-promo-list">{promoReminders.map(x=><section key={x.item.id}><time>{x.date===today?"今天":`${dateDiff(today,x.date)} 天后`} · {displayDate(x.date)}</time><p><i>％</i>{x.item.title}</p></section>)}</div></Modal>}
     {deleteTodo&&<Modal title="删除这个临时待办吗？" onClose={()=>setDeleteTodo(null)}><p className="modal-copy">它也会同时从日历和备忘中的 To-do 汇总里移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTodo(null)}>先保留</button><button className="danger" onClick={()=>{patch(x=>({...x,todos:x.todos.filter(y=>y.id!==deleteTodo)}));setDeleteTodo(null)}}>确认删除</button></div></Modal>}
     {deleteMemo&&<Modal title="删除这条快速备忘吗？" onClose={()=>setDeleteMemo(null)}><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteMemo(null)}>先保留</button><button className="danger" onClick={()=>{patch(x=>({...x,memos:x.memos.filter(y=>y.id!==deleteMemo)}));setDeleteMemo(null)}}>确认删除</button></div></Modal>}
@@ -939,6 +940,8 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
     "未记录":{title:"先记录一次周期，建议会更贴合",body:"添加最近一次经期开始和结束日期，即可获得阶段提示。",drink:"日常温水，少量多次。",meal:"规律三餐，保证蛋白质与蔬菜。",sport:"从散步和基础拉伸开始。",wear:"根据体感选择舒适、透气的衣物。"},
   };
   const advice=phaseAdvice[info.phase];
+  const outfitIndex=weather?.temperature!==undefined?(weather.temperature>=28?1:weather.temperature<=12?3:localSeason(location.latitude)==="秋日"?2:0):dailyIndex(today,4);
+  const outfitLabels=["轻柔春日层次","清爽夏日防晒","温暖秋日叠穿","舒适冬日保暖"];
   const estimateCalories=(text:string)=>{
     const table:{key:RegExp;kcal:number;name:string}[]=[
       {key:/米饭|一碗饭/,kcal:230,name:"米饭"},{key:/面条|拌面|汤面/,kcal:350,name:"面食"},{key:/鸡胸|鸡肉/,kcal:220,name:"鸡肉"},{key:/牛肉/,kcal:280,name:"牛肉"},{key:/猪肉|水煮肉片/,kcal:420,name:"猪肉"},{key:/奶茶/,kcal:450,name:"奶茶"},{key:/拿铁|咖啡/,kcal:120,name:"咖啡"},{key:/酸奶/,kcal:150,name:"酸奶"},{key:/鸡蛋|水煮蛋/,kcal:80,name:"鸡蛋"},{key:/苹果|香蕉|水果/,kcal:120,name:"水果"},{key:/沙拉/,kcal:300,name:"沙拉"},{key:/火锅/,kcal:800,name:"火锅"},{key:/燕麦/,kcal:180,name:"燕麦"},{key:/豆腐/,kcal:120,name:"豆腐"},{key:/虾|虾仁/,kcal:120,name:"虾仁"},{key:/三文鱼/,kcal:260,name:"三文鱼"},{key:/面包|吐司/,kcal:160,name:"面包"},{key:/坚果|杏仁|南瓜籽/,kcal:170,name:"坚果"},{key:/蔬菜|菠菜|西兰花/,kcal:60,name:"蔬菜"}
@@ -1031,6 +1034,7 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
       <form className="location-picker" onSubmit={saveLocation}><div><span className="eyebrow">YOUR LOCATION</span><h2>所在地</h2><p>天气、气候、时令与相关建议会跟随这里更新。</p></div><label>国家 / 地区<input value={locationForm.country} onChange={e=>setLocationForm({...locationForm,country:e.target.value})} placeholder="中国"/></label><label>城市<input list="common-health-cities" value={locationForm.city} onChange={e=>setLocationForm({...locationForm,city:e.target.value})} placeholder="杭州市" required/><datalist id="common-health-cities"><option value="杭州市"/><option value="上海市"/><option value="北京市"/><option value="广州市"/><option value="深圳市"/><option value="成都市"/><option value="东京"/><option value="首尔"/><option value="伦敦"/><option value="纽约"/></datalist></label><button disabled={locationSearching}>{locationSearching?"正在定位…":"应用位置"}</button>{locationError&&<small>{locationError}</small>}</form>
       <div className="weather-banner"><div><span className="eyebrow">{location.city.toUpperCase()} · {currentTerm}</span><h2>{weather?`${weatherText(weather.code)} · ${weather.temperature}°C`:`正在读取${location.city}天气…`}</h2><p>{weather?`体感 ${weather.apparent}°C · 湿度 ${weather.humidity}% · ${info.phase}`:weatherError?`暂时无法联网，以下按${localSeason(location.latitude)}与周期提供离线建议。`:"天气数据由 Open‑Meteo 提供，无需账号。"}</p></div><i>{weather&&weather.code>=50?"☂":"☼"}</i></div>
       <div className="care-grid"><article><span>01 · 日常饮品</span><h3>{weather&&weather.humidity>75?"空气偏湿，适合清爽饮品":"温和补水，照顾当下体感"}</h3><p>{advice.drink}</p></article><article><span>02 · 一日三餐</span><h3>顺应周期的轻盈搭配</h3><p>{advice.meal}</p></article><article><span>03 · 今日运动</span><h3>{weather&&weather.code>=50?"雨天优先室内":"按体感选择室内或户外"}</h3><p>{weather&&weather.code>=50?`今天更适合室内活动。${advice.sport}`:advice.sport}</p></article><article><span>04 · 穿搭灵感</span><h3>{weather?`${weather.apparent}°C 体感穿搭`:`${location.city}${localSeason(location.latitude)}舒适穿搭`}</h3><p>{advice.wear}{weather&&weather.temperature>30?" 高温注意防晒、补水。":weather&&weather.temperature<12?" 气温偏低，注意腰腹和脚踝保暖。":""}</p></article></div>
+      <figure className={`outfit-inspiration outfit-${outfitIndex}`}><div role="img" aria-label={outfitLabels[outfitIndex]}></div><figcaption><span className="eyebrow">TODAY&apos;S OUTFIT</span><h3>{outfitLabels[outfitIndex]}</h3><p>{advice.wear}</p></figcaption></figure>
       <p className="health-disclaimer">健康与周期建议仅用于日常自我照顾，不用于诊断或治疗；若有持续不适或周期明显异常，请及时咨询医生。</p>
     </section>}
   </div>;
@@ -1424,9 +1428,9 @@ function Travel({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>Wo
   </div>;
 }
 
-function Cats({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void}) {
+function Cats({data,patch,initialCatId}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void;initialCatId?:string}) {
   const today=todayKey();
-  const [catId,setCatId]=useState(data.catProfiles[0]?.id||"");
+  const [catId,setCatId]=useState(initialCatId||data.catProfiles[0]?.id||"");
   const cat=data.catProfiles.find(x=>x.id===catId)||data.catProfiles[0];
   const [showProfile,setShowProfile]=useState(!cat);
   const [creatingCat,setCreatingCat]=useState(!cat);
@@ -1435,6 +1439,7 @@ function Cats({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>Work
   const [growth,setGrowth]=useState({title:"",note:"",date:today,photo:""});
   const [health,setHealth]=useState({kind:"驱虫" as CatHealth["kind"],title:"",date:today,note:""});
   const [weight,setWeight]=useState("");
+  useEffect(()=>{if(initialCatId&&data.catProfiles.some(x=>x.id===initialCatId))setCatId(initialCatId)},[initialCatId,data.catProfiles]);
   useEffect(()=>{if(cat){setProfile({name:cat.name,birthday:cat.birthday,breed:cat.breed,sex:cat.sex,homeDate:cat.homeDate,neutered:cat.neutered,photo:cat.photo||""})}},[cat?.id]);
   const readImage=(file:File|undefined,done:(value:string)=>void)=>{if(!file)return;const reader=new FileReader();reader.onload=()=>done(String(reader.result));reader.readAsDataURL(file)};
   const saveProfile=(e:FormEvent)=>{e.preventDefault();if(!profile.name.trim())return;const target=creatingCat?undefined:cat;const id=target?.id||uid();const item:CatProfile={id,name:profile.name.trim(),birthday:profile.birthday,breed:profile.breed.trim(),sex:profile.sex,homeDate:profile.homeDate,neutered:profile.neutered,photo:profile.photo||undefined,updatedAt:Date.now()};patch(d=>({...d,catProfiles:target?d.catProfiles.map(x=>x.id===target.id?item:x):[...d.catProfiles,item],catCare:target?d.catCare:[...d.catCare,...["喂食","换水","铲屎"].map((title,order)=>({id:uid(),catId:id,title,date:today,done:false,order,updatedAt:Date.now()}))]}));setCatId(id);setCreatingCat(false);setShowProfile(false)};

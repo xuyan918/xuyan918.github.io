@@ -61,6 +61,7 @@ type WorkbenchData = {
 
 const STORAGE_KEY = "bear-workbench-v1";
 const SALARY_CLEANUP_KEY = "bear-workbench-salary-cleaned-20260729";
+const GROWTH_CLEANUP_KEY = "bear-workbench-growth-cleaned-20260731";
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const todayKey = () => dayKey(new Date());
@@ -87,12 +88,24 @@ const TRACK_DAILIES:Record<string,{items:string[];material:string}[]> = {
   topik:[{items:["안녕하세요 — 你好","오늘 — 今天","공부하다 — 学习","좋아하다 — 喜欢","천천히 — 慢慢地","语法：-고 싶어요（想要……）","开口：오늘 한국어를 공부하고 싶어요."],material:"先听读 3 遍，再遮住中文独立说出完整句。"},{items:["약속 — 约定","시간 — 时间","친구 — 朋友","만나다 — 见面","기다리다 — 等待","语法：-(으)ㄹ 거예요（将要……）","造句：주말에 친구를 만날 거예요."],material:"把例句里的“朋友”替换成家人、同事，再说两遍。"},{items:["날씨 — 天气","따뜻하다 — 温暖","산책 — 散步","공원 — 公园","기분 — 心情","语法：-아서/어서（因为／然后）","造句：날씨가 좋아서 공원에서 산책해요."],material:"注意 좋아서 的连读，录下自己的一遍朗读。"}],
   cpa:[{items:["概念：资产的定义、确认条件与常见分类","辨析：资产与费用的边界","例题：用银行存款购入设备，会同时影响哪些科目？","复盘：用一句话解释“预期带来经济利益”"],material:"用 15 分钟画出资产、负债、所有者权益的关系图。"},{items:["概念：权责发生制","辨析：收付实现制与权责发生制","例题：12 月提供服务、次年 1 月收款，收入何时确认？","复盘：列举一个预付和一个应付场景"],material:"先判断业务发生时间，再判断现金收付时间。"},{items:["概念：借贷记账法与会计恒等式","规则：资产增加记借方，负债增加记贷方","例题：短期借款到账如何编制分录？","复盘：检查借贷金额是否相等"],material:"今天只练 3 笔简单分录，重点是方向准确。"}],
   photoshop:[{items:["工具：污点修复画笔（J）","理解：新建空白图层并勾选“对所有图层取样”","练习：移除生活照中的一个小杂物","检查：放大 100% 查看纹理是否自然"],material:"快捷键：⌘J 复制图层；⌘T 自由变换。"},{items:["工具：快速选择工具（W）","理解：选择并遮住比直接删除更可逆","练习：把人物从纯色背景中分离","检查：用“选择并遮住”优化发丝边缘"],material:"粗选 → 边缘优化 → 图层蒙版 → 回看细节。"},{items:["工具：曲线（⌘M）","理解：黑场、灰场与白场","练习：修正一张偏暗照片","检查：避免高光过曝和暗部死黑"],material:"先做轻微 S 曲线，再切换图层可见性比较前后。"}],
-  law:[{items:["案例：公司解除劳动合同，需要满足什么条件？","知识点：解除理由、程序与经济补偿是三个不同问题","行动：保存劳动合同、工资记录与沟通证据","自测：口头通知是否等于合法解除？"],material:"仅作常识学习，具体问题仍需咨询专业人士。"},{items:["案例：租房押金在什么情况下可以扣除？","知识点：核对合同约定、实际损失与交接记录","行动：入住和退租都拍摄带时间的房屋视频","自测：自然损耗是否应由租客承担？"],material:"证据通常比争论更有用；重要沟通尽量保留书面记录。"},{items:["案例：网购商品不满意能否七日无理由退货？","知识点：先判断商品是否属于法定例外","行动：保留订单、商品页面和沟通记录","自测：拆封是否必然失去退货权？"],material:"具体规则会因商品性质和平台场景不同而变化。"}],
-  "finance-study":[{items:["盘点：列出每月必要支出","行动：计算 3–6 个月安全垫目标","检查：应急资金是否容易取用、风险是否足够低","提醒：不要把短期应急金放进高波动资产"],material:"先求稳定，再谈收益；界面不会展示收入数字。"},{items:["盘点：找出一个可取消的自动续费","行动：为非必需品设置 24 小时冷静期","检查：本周消费是否符合自己的优先级","记录：写下今天避免的一次冲动消费"],material:"预算不是限制生活，而是把钱留给更重要的事。"},{items:["概念：分散配置不能消除所有风险","行动：写下投资期限与可承受回撤","检查：是否理解产品收益来源和费用","提醒：不因短期涨跌频繁改变长期计划"],material:"仅作入门学习，不构成个性化投资建议。"}]
+  law:[{items:["案例：公司只用口头通知解除劳动合同，劳动者申请仲裁。","知识点：解除理由、程序与经济补偿是三个不同问题。","处理结果：公司无法证明合法解除依据，通常需承担违法解除责任或支付相应赔偿。","行动：保存劳动合同、工资记录、考勤与沟通证据。"],material:"结果会随证据和具体事实变化；仅作常识学习，不替代专业法律意见。"},{items:["案例：退租时房东以墙面自然变旧为由扣除全部押金。","知识点：应区分正常使用损耗与承租人造成的实际损坏。","处理结果：若房东无法证明具体损失及金额，调解或裁判通常不会支持无依据扣除全部押金。","行动：入住、退租时拍摄带日期的视频并保留交接记录。"],material:"合同约定、房屋现状和证据会影响结果；重要沟通尽量留书面记录。"},{items:["案例：消费者网购普通商品后在七日内申请无理由退货，商家以已拆封拒绝。","知识点：拆封不当然丧失退货权，但定作、鲜活易腐等法定例外除外。","处理结果：不属于例外且商品保持完好的，平台介入或诉讼通常会支持依法退货。","行动：保留订单、商品页面、完整包装和沟通记录。"],material:"商品性质和完好标准会影响结果，先核对平台规则与现行法律。"}],
+  "finance-study":[{items:["基础：股票代表对公司的所有权份额，收益与风险来自公司经营和市场定价。","辨析：股价上涨不等于公司价值永远上升，短期价格可能大幅波动。","自测：买入前能否说清公司如何赚钱、主要风险和自己的持有期限？","风险：不借钱投资，不把应急资金投入高波动资产。"],material:"先理解资产，再考虑交易；仅作投资者教育，不构成投资建议。"},{items:["基础：基金把多位投资者的资金交由基金管理人按约定组合投资。","分类：常见有货币、债券、混合、股票和指数基金，风险收益特征不同。","费用：关注申购赎回费、管理费、托管费及销售服务费。","自测：产品投资范围、风险等级和费用是否与自己的期限匹配？"],material:"基金分散了单一证券风险，但不等于保本，也可能发生亏损。"},{items:["基础：指数基金力求跟踪特定指数，ETF通常可在交易所买卖。","指标：比较跟踪指数、跟踪误差、规模、流动性和综合费率。","风险：宽基指数也会随市场下跌，行业主题基金的波动往往更集中。","行动：写下投资目标、期限和可承受回撤，再决定是否参与。"],material:"长期、分散和费用意识比追逐短期热点更适合建立基础认知。"}]
 };
 const trackDaily = (id:string,date:string)=>{
-  if(id==="ielts")return {words:IELTS_WORDS[dailyIndex(date,IELTS_WORDS.length)],items:["口语任务：用 45 秒描述一次你解决工作难题的经历","跟读提示：按意群停顿，重读 resilient、problem 和 solution"],material:"She remained resilient, identified the real problem, and proposed a practical solution.",speaking:"She remained resilient, identified the real problem, and proposed a practical solution."};
-  const sets=TRACK_DAILIES[id]; return sets?{...sets[dailyIndex(date,sets.length)]}:{items:[],material:""};
+  const ieltsSpeaking=[
+    {text:"She remained resilient, identified the real problem, and proposed a practical solution.",translation:"她保持坚韧，找出了真正的问题，并提出了切实可行的解决方案。"},
+    {text:"Public transport makes education and employment more accessible to everyone.",translation:"公共交通让每个人都更容易获得教育和就业机会。"},
+    {text:"Small but consistent habits can transform the way we learn.",translation:"微小但持续的习惯能够改变我们的学习方式。"},
+  ];
+  const topikSpeaking=[
+    {text:"오늘 한국어를 공부하고 싶어요.",translation:"今天我想学习韩语。"},
+    {text:"주말에 친구를 만날 거예요.",translation:"周末我要去见朋友。"},
+    {text:"날씨가 좋아서 공원에서 산책해요.",translation:"因为天气很好，所以我在公园散步。"},
+  ];
+  if(id==="ielts"){const speaking=ieltsSpeaking[dailyIndex(date,ieltsSpeaking.length)];return {words:IELTS_WORDS[dailyIndex(date,IELTS_WORDS.length)],items:["口语任务：先听示范，再按意群完成两遍跟读","跟读提示：注意重音、连读和句末语调"],material:speaking.text,speaking:speaking.text,translation:speaking.translation,language:"en-US"}}
+  const sets=TRACK_DAILIES[id];
+  if(id==="topik"&&sets){const speaking=topikSpeaking[dailyIndex(date,topikSpeaking.length)];return {...sets[dailyIndex(date,sets.length)],speaking:speaking.text,translation:speaking.translation,language:"ko-KR"}}
+  return sets?{...sets[dailyIndex(date,sets.length)]}:{items:[],material:""};
 };
 const WORD_TRANSLATIONS:Record<string,string>={
   resilient:"她在每一次变化中都保持坚韧。",allocate:"我们应该为复习分配更多时间。",crucial:"睡眠对于高效学习至关重要。",enhance:"经常阅读可以提升你的词汇量。",sustainable:"城市需要可持续的交通系统。",perspective:"旅行让她对生活有了新的视角。",significant:"这项政策带来了显著改善。",adapt:"人们很快就能适应新技术。",contribute:"运动有助于改善心理健康。",inevitable:"某种程度的变化不可避免。",
@@ -186,25 +199,20 @@ const phaseTwoDefaults = (now = Date.now()) => ({
     { id:"api",name:"API",icon:"↔",progress:"进行中" as ProgressState,beginner:["HTTP 与 REST","用工具调试请求"],advanced:["鉴权、分页与重试","接口设计与安全"],points:["HTTP","JSON","REST","OAuth"],resources:["MDN HTTP 指南","Postman Learning Center"],notes:"",updatedAt:now },
     { id:"prompt",name:"Prompt Engineering",icon:"Aa",progress:"进行中" as ProgressState,beginner:["清晰指令与上下文","结构化输出"],advanced:["评测与迭代","工具使用提示"],points:["角色","约束","示例","评估"],resources:["OpenAI 提示工程指南","Prompt Engineering Guide"],notes:"",updatedAt:now },
     { id:"workflow",name:"工作流",icon:"⌁",progress:"进行中" as ProgressState,beginner:["拆解输入、处理、输出","异常与分支"],advanced:["可观测性","人机协同与恢复"],points:["状态机","幂等","重试","日志"],resources:["影刀学院","n8n 官方文档"],notes:"",updatedAt:now },
-    { id:"bi",name:"BI（基础）",icon:"▥",progress:"未开始" as ProgressState,beginner:["指标与维度","基础图表"],advanced:["看板设计","数据建模"],points:["指标","维度","可视化","Power BI"],resources:["Microsoft Learn Power BI"],notes:"",updatedAt:now },
-    { id:"warehouse",name:"数据仓库（基础）",icon:"▤",progress:"未开始" as ProgressState,beginner:["事实表与维度表","ETL 基础"],advanced:["分层建模","质量与血缘"],points:["ETL","星型模型","分层"],resources:["阿里云数据仓库基础文章"],notes:"",updatedAt:now },
-    { id:"linux",name:"Linux（基础）",icon:"$_",progress:"未开始" as ProgressState,beginner:["目录与常用命令","文件权限"],advanced:["进程、网络与脚本","部署排障"],points:["Shell","权限","进程","网络"],resources:["Linux Journey","鸟哥的 Linux 私房菜"],notes:"",updatedAt:now },
+    { id:"bi",name:"BI",icon:"▥",progress:"未开始" as ProgressState,beginner:["指标与维度","基础图表"],advanced:["看板设计","数据建模"],points:["指标","维度","可视化","Power BI"],resources:["Microsoft Learn Power BI"],notes:"",updatedAt:now },
+    { id:"warehouse",name:"数据仓库",icon:"▤",progress:"未开始" as ProgressState,beginner:["事实表与维度表","ETL 基础"],advanced:["分层建模","质量与血缘"],points:["ETL","星型模型","分层"],resources:["阿里云数据仓库基础文章"],notes:"",updatedAt:now },
+    { id:"linux",name:"Linux",icon:"$_",progress:"未开始" as ProgressState,beginner:["目录与常用命令","文件权限"],advanced:["进程、网络与脚本","部署排障"],points:["Shell","权限","进程","网络"],resources:["Linux Journey","鸟哥的 Linux 私房菜"],notes:"",updatedAt:now },
   ],
   learningTracks: [
-    { id:"ielts",name:"雅思备考",icon:"EN",subtitle:"英语 · 每日 10 个高频词",plan:["第 1 阶段：语音与核心词汇","第 2 阶段：听读输入","第 3 阶段：写作与口语输出"],today:["resilient /rɪˈzɪliənt/ 有韧性的","allocate /ˈæləkeɪt/ 分配","口语：描述一次解决工作难题的经历"],material:"跟读例句：She remained resilient through every change.",updatedAt:now },
-    { id:"topik",name:"韩语 TOPIK",icon:"한",subtitle:"轻量培养 · 每日 5 词 + 1 语法",plan:["掌握韩文字母与发音","积累生活场景词汇","TOPIK I 语法与题型"],today:["안녕하세요 你好","오늘 今天","공부하다 学习","좋아하다 喜欢","천천히 慢慢地","语法：-고 싶어요（想要……）"],material:"오늘 한국어를 공부하고 싶어요.",updatedAt:now },
-    { id:"cpa",name:"注册会计师",icon:"CPA",subtitle:"轻量入门 · 每日 1 概念 + 1 例题",plan:["会计要素与记账基础","审计与税法概览","按章节建立知识树"],today:["概念：资产是由过去事项形成、由企业控制并预期带来经济利益的资源","例题：用银行存款购入设备，会同时影响哪些会计科目？"],material:"建议每天 15 分钟，不追求速度，先建立框架。",updatedAt:now },
-    { id:"photoshop",name:"Photoshop",icon:"Ps",subtitle:"工具 + 小练习",plan:["认识图层与选区","基础修图与文字排版","完成 3 个小设计案例"],today:["工具：污点修复画笔（J）","练习：为一张生活照移除一个小杂物"],material:"快捷键：⌘J 复制图层；⌘T 自由变换。",updatedAt:now },
-    { id:"law",name:"法律常识",icon:"§",subtitle:"每日 1 个案例知识点",plan:["劳动法与社保公积金","婚姻家庭与民法","刑法基础常识"],today:["案例：公司解除劳动合同，需要符合什么条件？","要点：注意保存劳动合同、工资记录与沟通证据。"],material:"内容仅作常识学习，具体问题仍需咨询专业人士。",updatedAt:now },
-    { id:"finance-study",name:"理财入门",icon:"¥",subtitle:"每日 1 条可执行建议",plan:["记录现金流","建立应急资金","了解低风险配置与长期投资"],today:["今天的小行动：检查是否已预留 3–6 个月必要支出的应急资金。"],material:"建议基于“你的收入”计算比例，界面不会展示收入数字。",updatedAt:now },
+    { id:"law",name:"法律常识",icon:"§",subtitle:"",plan:["建立法律体系与基本概念","学习检索法条和识别争议焦点","结合案例训练证据与程序意识"],today:["案例：公司解除劳动合同，需要符合什么条件？","要点：注意保存劳动合同、工资记录与沟通证据。"],material:"内容仅作常识学习，具体问题仍需咨询专业人士。",updatedAt:now },
+    { id:"finance-study",name:"股票基金",icon:"¥",subtitle:"",plan:["认识股票、基金与常见指数","理解风险、收益、费用和流动性","建立长期、分散且适合自己的投资框架"],today:["先理解股票与基金的基本差异。"],material:"仅作投资者教育，不构成投资建议。",updatedAt:now },
+    { id:"photoshop",name:"Photoshop",icon:"Ps",subtitle:"",plan:["认识图层与选区","基础修图与文字排版","完成 3 个小设计案例"],today:["工具：污点修复画笔（J）","练习：为一张生活照移除一个小杂物"],material:"快捷键：⌘J 复制图层；⌘T 自由变换。",updatedAt:now },
+    { id:"ielts",name:"雅思备考",icon:"EN",subtitle:"",plan:["第 1 阶段：语音与核心词汇","第 2 阶段：听读输入","第 3 阶段：写作与口语输出"],today:["resilient /rɪˈzɪliənt/ 有韧性的","allocate /ˈæləkeɪt/ 分配","口语：描述一次解决工作难题的经历"],material:"跟读例句：She remained resilient through every change.",updatedAt:now },
+    { id:"topik",name:"韩语 TOPIK",icon:"한",subtitle:"",plan:["掌握韩文字母与发音","积累生活场景词汇","TOPIK I 语法与题型"],today:["안녕하세요 你好","오늘 今天","공부하다 学习","좋아하다 喜欢","천천히 慢慢地","语法：-고 싶어요（想要……）"],material:"오늘 한국어를 공부하고 싶어요.",updatedAt:now },
+    { id:"cpa",name:"注册会计师",icon:"CPA",subtitle:"",plan:["会计要素与记账基础","审计与税法概览","按章节建立知识树"],today:["概念：资产是由过去事项形成、由企业控制并预期带来经济利益的资源","例题：用银行存款购入设备，会同时影响哪些会计科目？"],material:"建议每天 15 分钟，不追求速度，先建立框架。",updatedAt:now },
   ],
   checkins: [] as Checkin[],
-  goals: [
-    { id:uid(),kind:"证书" as const,text:"取得雅思目标成绩",done:false,updatedAt:now },
-    { id:uid(),kind:"证书" as const,text:"通过 TOPIK 初级",done:false,updatedAt:now },
-    { id:uid(),kind:"副业" as const,text:"探索 RPA 自动化咨询",done:false,updatedAt:now },
-    { id:uid(),kind:"技能" as const,text:"完成第一个 RPA + AI 作品",done:false,updatedAt:now },
-  ],
+  goals: [] as Goal[],
 });
 
 const phaseThreeDefaults = (now = Date.now()) => {
@@ -370,15 +378,27 @@ function useWorkbench() {
         const jobDefaults = phaseFiveDefaults();
         const travelDefaults = phaseSixDefaults();
         const shouldCleanSalary = localStorage.getItem(SALARY_CLEANUP_KEY)!=="done";
+        const shouldCleanGrowth = localStorage.getItem(GROWTH_CLEANUP_KEY)!=="done";
         const cleanFinance = withoutStoredSalary(parsed,financeDefaults,shouldCleanSalary);
         if(shouldCleanSalary)localStorage.setItem(SALARY_CLEANUP_KEY,"done");
+        if(shouldCleanGrowth)localStorage.setItem(GROWTH_CLEANUP_KEY,"done");
+        const trackOrder=["law","finance-study","photoshop","ielts","topik","cpa"];
+        const trackDefaults=new Map(defaults.learningTracks.map(track=>[track.id,track]));
+        const normalizedTracks=(Array.isArray(parsed.learningTracks)?parsed.learningTracks:defaults.learningTracks)
+          .map((track:LearningTrack)=>{
+            const fallback=trackDefaults.get(track.id);
+            if(track.id==="law")return {...track,name:"法律常识",subtitle:"",plan:["建立法律体系与基本概念","学习检索法条和识别争议焦点","结合案例训练证据与程序意识"]};
+            if(track.id==="finance-study")return {...track,name:"股票基金",subtitle:"",plan:fallback?.plan||track.plan};
+            return {...track,subtitle:""};
+          })
+          .sort((a:LearningTrack,b:LearningTrack)=>trackOrder.indexOf(a.id)-trackOrder.indexOf(b.id));
         setData({
           ...parsed,
           todos: (Array.isArray(parsed.todos) ? parsed.todos : []).filter((todo:Todo)=>todo.text!=="更新求职简历"),
-          skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
-          learningTracks: Array.isArray(parsed.learningTracks) ? parsed.learningTracks : defaults.learningTracks,
+          skills: (Array.isArray(parsed.skills) ? parsed.skills : defaults.skills).map((skill:Skill)=>({...skill,name:skill.name.replace(/（基础）/g,"")})),
+          learningTracks: normalizedTracks,
           checkins: Array.isArray(parsed.checkins) ? parsed.checkins : defaults.checkins,
-          goals: Array.isArray(parsed.goals) ? parsed.goals : defaults.goals,
+          goals: shouldCleanGrowth ? [] : (Array.isArray(parsed.goals) ? parsed.goals : defaults.goals),
           periods: Array.isArray(parsed.periods) ? parsed.periods : healthDefaults.periods,
           workoutPlans: Array.isArray(parsed.workoutPlans) ? parsed.workoutPlans : healthDefaults.workoutPlans,
           healthLogs: Array.isArray(parsed.healthLogs) ? parsed.healthLogs : healthDefaults.healthLogs,
@@ -916,7 +936,7 @@ function FinanceEditor({item,data,patch,close}:{item:FinanceEntry|null;data:Work
   return <Modal title={item?"编辑账目":"手动记一笔"} onClose={close}><form className="editor-form" onSubmit={submit}><div className="two-col"><label>收支类型<select value={form.type} onChange={e=>{const type=e.target.value as "income"|"expense";setForm({...form,type,categoryId:data.financeCategories.find(c=>c.type===type)!.id})}}><option value="expense">支出</option><option value="income">收入</option></select></label><label>分类<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}>{data.financeCategories.filter(c=>c.type===form.type).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label></div><label>金额<input type="number" min=".01" step=".01" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} required/></label><label>备注<input value={form.note} onChange={e=>setForm({...form,note:e.target.value})}/></label><div className="two-col"><label>日期<input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}/></label><label>时间<input type="time" value={form.time} onChange={e=>setForm({...form,time:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={close}>取消</button><button>保存账目</button></div></form></Modal>;
 }
 
-function SpeakingPractice({text}:{text:string}) {
+function SpeakingPractice({text,language="en-US",translation=""}:{text:string;language?:string;translation?:string}) {
   const [recording,setRecording]=useState(false);
   const [audioUrl,setAudioUrl]=useState("");
   const [transcript,setTranscript]=useState("");
@@ -927,7 +947,7 @@ function SpeakingPractice({text}:{text:string}) {
   const chunksRef=useRef<Blob[]>([]);
   useEffect(()=>()=>{if(audioUrl)URL.revokeObjectURL(audioUrl)},[audioUrl]);
   const analyze=(heard:string)=>{
-    const clean=(s:string)=>s.toLowerCase().replace(/[^a-z'\s]/g,"").split(/\s+/).filter(Boolean);
+    const clean=(s:string)=>s.toLowerCase().replace(/[^\p{L}'\s]/gu,"").split(/\s+/).filter(Boolean);
     const expected=clean(text),actual=clean(heard);
     const matched=expected.filter((word,i)=>actual[i]===word||actual.includes(word)).length;
     const score=Math.round(matched/Math.max(expected.length,1)*100);
@@ -944,7 +964,7 @@ function SpeakingPractice({text}:{text:string}) {
       recorder.onstop=()=>{if(audioUrl)URL.revokeObjectURL(audioUrl);setAudioUrl(URL.createObjectURL(new Blob(chunksRef.current,{type:recorder.mimeType})));stream.getTracks().forEach(track=>track.stop())};
       const Recognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
       if(Recognition){
-        const recognition=new Recognition(); recognitionRef.current=recognition; recognition.lang="en-US"; recognition.interimResults=false;
+        const recognition=new Recognition(); recognitionRef.current=recognition; recognition.lang=language; recognition.interimResults=false;
         recognition.onresult=(e:any)=>{const heard=e.results?.[0]?.[0]?.transcript||"";setTranscript(heard);analyze(heard)};
         recognition.onerror=()=>setError("录音已保留，但本次未能完成语音转写，可以先回放自查。");
         recognition.start();
@@ -953,13 +973,14 @@ function SpeakingPractice({text}:{text:string}) {
     }catch{setError("没有获得麦克风权限。你可以在浏览器设置中允许后再试。")}
   };
   const stop=()=>{recorderRef.current?.stop();try{recognitionRef.current?.stop()}catch{}setRecording(false)};
-  return <section className="speaking-practice"><div><span>口语跟读</span><p>{text}</p></div><button className={recording?"recording":""} onClick={recording?stop:start}>{recording?"■ 停止并分析":"● 点击录音"}</button><small>仅在你点击后申请麦克风权限；录音留在本设备，不会上传。</small>{audioUrl&&<audio controls src={audioUrl}/>} {transcript&&<p className="transcript"><b>识别文本：</b>{transcript}</p>}{feedback&&<p className="speech-feedback">{feedback}<small>浏览器文本匹配仅供练习参考，并非专业声学评分。</small></p>}{error&&<p className="speech-error">{error}</p>}</section>;
+  const speak=()=>{if(!("speechSynthesis" in window))return;window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.lang=language;utterance.rate=.82;window.speechSynthesis.speak(utterance)};
+  return <section className="speaking-practice"><div><span>口语跟读</span><p>{text}</p>{translation&&<em>{translation}</em>}</div><div className="speaking-actions"><button className="listen" onClick={speak}>▷ 播放示范</button><button className={recording?"recording":""} onClick={recording?stop:start}>{recording?"■ 停止并分析":"● 点击录音"}</button></div><small>仅在你点击后申请麦克风权限；录音留在本设备，不会上传。</small>{audioUrl&&<audio controls src={audioUrl}/>} {transcript&&<p className="transcript"><b>识别文本：</b>{transcript}</p>}{feedback&&<p className="speech-feedback">{feedback}<small>浏览器文本匹配仅供练习参考，并非专业声学评分。</small></p>}{error&&<p className="speech-error">{error}</p>}</section>;
 }
 
 function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch: (fn:(d:WorkbenchData)=>WorkbenchData)=>void; initialTab?:"path"|"learn"|"goals" }) {
   const [tab,setTab]=useState<"path"|"learn"|"goals">(initialTab);
   const [openSkill,setOpenSkill]=useState<string>("agent");
-  const [openTrack,setOpenTrack]=useState<string>("ielts");
+  const [openTrack,setOpenTrack]=useState<string>("law");
   const [sourceText,setSourceText]=useState("");
   const [goalText,setGoalText]=useState("");
   const [goalKind,setGoalKind]=useState<Goal["kind"]>("证书");
@@ -991,11 +1012,11 @@ function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch
   const mastered=data.skills.filter(s=>s.progress==="已掌握").length;
   const inProgress=data.skills.filter(s=>s.progress==="进行中").length;
   return <div className="page growth-page">
-    <header className="growth-hero"><div><span className="eyebrow">RPA + AI GROWTH MAP</span><h1>把成长，变成看得见的路径</h1><p>先成为更专注的 RPA 开发者，再一步步走向 RPA + AI。</p><div className="growth-stats"><span><b>{inProgress}</b> 项进行中</span><span><b>{mastered}</b> 项已掌握</span><span><b>{data.checkins.filter(c=>c.date===today).length}</b> 项今日打卡</span></div></div><img src="/bears/bear-grid.jpg" alt="学习中的水彩小熊" /></header>
+    <header className="growth-hero"><div><span className="eyebrow">GROWTH MAP</span><h1>把成长，变成看得见的路径</h1><div className="growth-stats"><span><b>{inProgress}</b> 项进行中</span><span><b>{mastered}</b> 项已掌握</span><span><b>{data.checkins.filter(c=>c.date===today).length}</b> 项今日打卡</span></div></div><img src="/bears/bear-grid.jpg" alt="学习中的水彩小熊" /></header>
     <nav className="growth-tabs"><button className={tab==="path"?"active":""} onClick={()=>setTab("path")}>职业技能树</button><button className={tab==="learn"?"active":""} onClick={()=>setTab("learn")}>学习打卡</button><button className={tab==="goals"?"active":""} onClick={()=>setTab("goals")}>长期目标</button></nav>
 
     {tab==="path"&&<section>
-      <div className="growth-section-head"><div><span className="eyebrow">CAREER PATH</span><h2>RPA + AI 技能路径</h2></div><p>点击技能卡片查看计划，再点击状态按钮推进进度。</p></div>
+      <div className="growth-section-head"><div><span className="eyebrow">CAREER PATH</span><h2>职业技能路径</h2></div><p>点击技能卡片查看计划，再点击状态按钮推进进度。</p></div>
       <div className="skill-grid">{data.skills.map(skill=><article key={skill.id} className={`skill-card ${openSkill===skill.id?"open":""}`}>
         <button className="skill-summary" onClick={()=>setOpenSkill(openSkill===skill.id?"":skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.points.slice(0,3).join(" · ")}</small></span><em className={skill.progress==="已掌握"?"mastered":skill.progress==="进行中"?"doing":""}>{skill.progress}</em></button>
         {openSkill===skill.id&&<div className="skill-detail">
@@ -1011,10 +1032,11 @@ function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch
 
     {tab==="learn"&&<section>
       <div className="growth-section-head"><div><span className="eyebrow">DAILY LEARNING</span><h2>今天学一点，就很好</h2></div><p>每项都有实际内容、阶段计划和独立打卡。</p></div>
-      <div className="track-layout"><aside>{data.learningTracks.map(track=><button key={track.id} className={openTrack===track.id?"active":""} onClick={()=>setOpenTrack(track.id)}><i>{track.icon}</i><span>{track.name}<small>{track.subtitle}</small></span><b className={checked(track.id)?"checked":""}>{checked(track.id)?"✓":""}</b></button>)}</aside>
-      {data.learningTracks.filter(t=>t.id===openTrack).map(track=>{const daily=trackDaily(track.id,today);return <article className="track-detail" key={track.id}><div className="track-title"><div><span className="track-icon">{track.icon}</span><div><h2>{track.name}</h2><p>{track.subtitle}</p></div></div><button className={checked(track.id)?"checked":""} onClick={()=>toggleTrack(track.id)}>{checked(track.id)?"✓ 今日已打卡":"今日打卡"}</button></div>
+      <div className="track-layout"><aside>{data.learningTracks.map(track=><button key={track.id} className={openTrack===track.id?"active":""} onClick={()=>setOpenTrack(track.id)}><i>{track.icon}</i><span>{track.name}</span><b className={checked(track.id)?"checked":""}>{checked(track.id)?"✓":""}</b></button>)}</aside>
+      {data.learningTracks.filter(t=>t.id===openTrack).map(track=>{const daily=trackDaily(track.id,today);return <article className="track-detail" key={track.id}><div className="track-title"><div><span className="track-icon">{track.icon}</span><div><h2>{track.name}</h2></div></div><button className={checked(track.id)?"checked":""} onClick={()=>toggleTrack(track.id)}>{checked(track.id)?"✓ 今日已打卡":"今日打卡"}</button></div>
         <div className="today-learning"><span>今日内容 · {displayDate(today)} <em>每天自动轮换</em></span>{daily.words&&<div className="word-grid">{daily.words.map((x,i)=><article key={x.word}><b>{i+1}. {x.word}</b><small>{x.phonetic} · {x.meaning}</small><p>{x.example}</p><em>{WORD_TRANSLATIONS[x.word]}</em></article>)}</div>}{daily.items.map(x=><p key={x}>✦ {x}</p>)}<blockquote>{daily.material}</blockquote></div>
-        {daily.speaking&&<SpeakingPractice text={daily.speaking}/>}
+        {daily.speaking&&<SpeakingPractice text={daily.speaking} language={daily.language} translation={daily.translation}/>}
+        {track.id==="finance-study"&&<div className="learning-resources"><a href="https://www.investor.org.cn/xxzx/tzzkt/jj/jczs/" target="_blank" rel="noreferrer">中国投资者网 · 基金基础知识 ↗</a><a href="https://edu.sse.com.cn/college/required/basicinfo/index.shtml" target="_blank" rel="noreferrer">上交所投教 · 证券市场基础知识 ↗</a></div>}
         <div className="stage-plan"><h3>阶段学习计划</h3>{track.plan.map((x,i)=><div key={x}><b>0{i+1}</b><span>{x}</span></div>)}</div>
         <div className="track-note"><label>我的学习记录<textarea value={data.checkins.find(c=>c.trackId===track.id&&c.date===today)?.note||""} onChange={e=>patch(d=>({...d,checkins:d.checkins.map(c=>c.trackId===track.id&&c.date===today?{...c,note:e.target.value,updatedAt:Date.now()}:c)}))} placeholder={checked(track.id)?"写下今天实际学了什么…":"打卡后可以记录实际学习内容"}/></label></div>
       </article>})}</div>

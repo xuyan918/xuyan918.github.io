@@ -62,6 +62,7 @@ type WorkbenchData = {
 const STORAGE_KEY = "bear-workbench-v1";
 const SALARY_CLEANUP_KEY = "bear-workbench-salary-cleaned-20260729";
 const GROWTH_CLEANUP_KEY = "bear-workbench-growth-cleaned-20260731";
+const JOB_FILTER_CLEANUP_KEY = "bear-workbench-job-filters-cleaned-20260731";
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const todayKey = () => dayKey(new Date());
@@ -278,11 +279,7 @@ const phaseFiveDefaults = (now=Date.now()) => ({
   jobs:[
     {id:"job-jiansheng",company:"浙江健盛集团",title:"RPA 工程师",salary:"8–12K · 13薪",companySize:1000,location:"杭州 · 萧山区",jd:"参与业务流程梳理与自动化开发，岗位关键词包含 RPA；适合继续积累企业级流程交付经验。",url:"https://mwenku.51job.com/hangzhou_jobs/202601/Python/",source:"前程无忧公开招聘页",publishedAt:"2026-07-29",status:"感兴趣" as JobStatus,statusUpdatedAt:now,updatedAt:now},
   ] as JobListing[],
-  jobCriteria:[
-    {id:"criterion-keyword",kind:"关键词" as const,value:"RPA / 影刀",updatedAt:now},
-    {id:"criterion-size",kind:"最低公司人数" as const,value:"100",updatedAt:now},
-    {id:"criterion-location",kind:"地点" as const,value:"杭州",updatedAt:now},
-  ] as JobCriterion[],
+  jobCriteria:[] as JobCriterion[],
 });
 const withoutStoredSalary = (parsed:any, defaults:ReturnType<typeof phaseFourDefaults>, cleanup=true) => {
   const settings = parsed.financeSettings || defaults.financeSettings;
@@ -395,9 +392,11 @@ function useWorkbench() {
         const travelDefaults = phaseSixDefaults();
         const shouldCleanSalary = localStorage.getItem(SALARY_CLEANUP_KEY)!=="done";
         const shouldCleanGrowth = localStorage.getItem(GROWTH_CLEANUP_KEY)!=="done";
+        const shouldCleanJobFilters = localStorage.getItem(JOB_FILTER_CLEANUP_KEY)!=="done";
         const cleanFinance = withoutStoredSalary(parsed,financeDefaults,shouldCleanSalary);
         if(shouldCleanSalary)localStorage.setItem(SALARY_CLEANUP_KEY,"done");
         if(shouldCleanGrowth)localStorage.setItem(GROWTH_CLEANUP_KEY,"done");
+        if(shouldCleanJobFilters)localStorage.setItem(JOB_FILTER_CLEANUP_KEY,"done");
         const trackOrder=["law","finance-study","photoshop","ielts","topik","cpa"];
         const trackDefaults=new Map(defaults.learningTracks.map(track=>[track.id,track]));
         const normalizedTracks=(Array.isArray(parsed.learningTracks)?parsed.learningTracks:defaults.learningTracks)
@@ -426,7 +425,7 @@ function useWorkbench() {
           savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : financeDefaults.savingsGoals,
           financeSettings: cleanFinance.financeSettings,
           jobs: Array.isArray(parsed.jobs) ? parsed.jobs : jobDefaults.jobs,
-          jobCriteria: Array.isArray(parsed.jobCriteria) ? parsed.jobCriteria : jobDefaults.jobCriteria,
+          jobCriteria: (Array.isArray(parsed.jobCriteria) ? parsed.jobCriteria : jobDefaults.jobCriteria).filter((criterion:JobCriterion)=>!shouldCleanJobFilters||!["criterion-keyword","criterion-size","criterion-location"].includes(criterion.id)),
           destinations: Array.isArray(parsed.destinations) ? parsed.destinations : travelDefaults.destinations,
           travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
           packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
@@ -914,6 +913,8 @@ function Finance({ data, patch, initialTab="ledger" }:{data:WorkbenchData;patch:
   const [range,setRange]=useState<"day"|"week"|"month"|"year">("month");
   const [tab,setTab]=useState<"ledger"|"shopping"|"advice">(initialTab);
   const [quick,setQuick]=useState("");
+  const [listening,setListening]=useState(false);
+  const [ocrStatus,setOcrStatus]=useState("");
   const [editor,setEditor]=useState<FinanceEntry|null|"new">(null);
   const [categoryForm,setCategoryForm]=useState({name:"",type:"expense" as "income"|"expense",color:"#D48793"});
   const [showCategory,setShowCategory]=useState(false);
@@ -939,15 +940,35 @@ function Finance({ data, patch, initialTab="ledger" }:{data:WorkbenchData;patch:
     const count=range==="year"?12:range==="month"?Math.min(new Date().getDate(),14):7;const result:{label:string;income:number;expense:number}[]=[];
     for(let i=count-1;i>=0;i--){const d=new Date();if(range==="year"){d.setMonth(d.getMonth()-i);d.setDate(1)}else d.setDate(d.getDate()-i);const key=range==="year"?`${d.getFullYear()}-${pad(d.getMonth()+1)}`:dayKey(d);const matches=data.financeEntries.filter(e=>range==="year"?e.date.startsWith(key):e.date===key);result.push({label:range==="year"?`${d.getMonth()+1}月`:`${d.getMonth()+1}/${d.getDate()}`,income:matches.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0),expense:matches.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0)})}return result;
   },[data.financeEntries,range]);
-  const parseEntry=()=>{
-    const text=quick.trim();if(!text)return;
+  const parseEntry=(source=quick)=>{
+    const text=source.trim();if(!text)return false;
     const d=new Date();if(/昨天/.test(text))d.setDate(d.getDate()-1);else if(/前天/.test(text))d.setDate(d.getDate()-2);
+    const explicitDate=text.match(/(20\d{2})[年/\-.](\d{1,2})[月/\-.](\d{1,2})日?/);if(explicitDate)d.setFullYear(Number(explicitDate[1]),Number(explicitDate[2])-1,Number(explicitDate[3]));
     let time=`${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;const tm=text.match(/(?:上午|中午|下午|晚上)?\s*(\d{1,2})[点:：](\d{1,2})?/);if(tm){let h=Number(tm[1]);if(/下午|晚上/.test(tm[0])&&h<12)h+=12;if(/中午/.test(tm[0])&&h<11)h+=12;time=`${pad(h)}:${pad(Number(tm[2]||0))}`}else if(/早晨|早上/.test(text))time="09:00";else if(/上午/.test(text))time="10:00";else if(/中午/.test(text))time="12:00";else if(/下午/.test(text))time="15:00";else if(/晚上/.test(text))time="19:00";
-    const nums=[...text.matchAll(/(\d+(?:\.\d{1,2})?)\s*(?:元|块)?/g)].map(m=>Number(m[1]));const amount=nums[nums.length-1]||0;if(!amount)return;
+    const money=[...text.matchAll(/(?:¥|￥)\s*(\d+(?:\.\d{1,2})?)|(\d+(?:\.\d{1,2})?)\s*(?:元|块)/g)].map(m=>Number(m[1]||m[2]));const nums=[...text.matchAll(/\d+(?:\.\d{1,2})?/g)].map(m=>Number(m[0]));const amount=money[money.length-1]||nums[nums.length-1]||0;if(!amount)return false;
     const isIncome=/收入|工资|奖金|红包|卖闲置|收到|转入|生活费/.test(text);const map:[RegExp,string][]=[[/饭|吃|餐|肉片|外卖|早餐|午餐|晚餐/,"餐饮"],[/奶茶|咖啡|茶|饮料/,"饮品"],[/地铁|打车|公交|滴滴/,"交通"],[/房租|租金/,"房租"],[/普拉提|健身|瑜伽/,"运动"],[/书|课程|学习/,"学习"],[/衣服|裙|鞋|服饰/,"服饰"],[/护肤|化妆|美容/,"美容"],[/工资/,"工资"],[/红包/,"红包"],[/闲置/,"卖闲置"],[/旅行|酒店|机票/,"旅行"],[/快递/,"快递"],[/医院|药|医疗/,"医疗"],[/游戏/,"游戏"]];
     const name=map.find(([key])=>key.test(text))?.[1]||(isIncome?"其他收入":"其他");let cat=data.financeCategories.find(c=>c.type===(isIncome?"income":"expense")&&c.name===name);if(!cat)cat=data.financeCategories.find(c=>c.type===(isIncome?"income":"expense"));
     const note=text.replace(/今天|昨天|前天|早晨|早上|上午|中午|下午|晚上/g,"").replace(/(?:\d{1,2})[点:：]\d{0,2}/g,"").replace(/\d+(?:\.\d{1,2})?\s*(?:元|块)?/g,"").replace(/花了|支付|支出|收入|消费|一笔/g,"").replace(/[，,。.\s]+/g," ").trim()||name;
-    patch(x=>({...x,financeEntries:[...x.financeEntries,{id:uid(),type:isIncome?"income":"expense",categoryId:cat!.id,amount,note,date:dayKey(d),time,updatedAt:Date.now()}]}));setQuick("");
+    patch(x=>({...x,financeEntries:[...x.financeEntries,{id:uid(),type:isIncome?"income":"expense",categoryId:cat!.id,amount,note,date:dayKey(d),time,updatedAt:Date.now()}]}));setQuick("");return true;
+  };
+  const startVoiceEntry=()=>{
+    const Recognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
+    if(!Recognition){setOcrStatus("当前浏览器暂不支持语音识别，可以继续使用文字或截图记账。");return}
+    const recognition=new Recognition();recognition.lang="zh-CN";recognition.interimResults=false;recognition.continuous=false;
+    recognition.onstart=()=>setListening(true);recognition.onend=()=>setListening(false);
+    recognition.onerror=()=>{setListening(false);setOcrStatus("没有听清，请再说一次。")};
+    recognition.onresult=(event:any)=>{const text=String(event.results?.[0]?.[0]?.transcript||"");setQuick(text);setOcrStatus(parseEntry(text)?"已识别语音并记入账本。":"已转成文字，请补充金额后点击自动记账。")};
+    recognition.start();
+  };
+  const readReceipt=async(e:ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0];if(!file)return;setOcrStatus("正在识别截图，请稍候…");
+    try{
+      const {recognize}=await import("tesseract.js");
+      const result=await recognize(file,"chi_sim+eng");
+      const text=result.data.text.replace(/\s+/g," ").trim();setQuick(text);
+      setOcrStatus(parseEntry(text)?"已从截图识别并记入账本，请核对分类和金额。":"已提取截图文字，请在输入框中补充或调整后记账。");
+    }catch{setOcrStatus("这张图片暂时没有识别成功，请换一张更清晰的截图。")}
+    e.target.value="";
   };
   const addShopping=(e:FormEvent)=>{e.preventDefault();if(!shopForm.name.trim())return;patch(d=>({...d,shoppingItems:[...d.shoppingItems,{id:uid(),name:shopForm.name.trim(),price:Number(shopForm.price)||0,saved:0,purchased:false,updatedAt:Date.now()}]}));setShopForm({name:"",price:""})};
   const addGoal=(e:FormEvent)=>{e.preventDefault();if(!goalForm.name.trim())return;patch(d=>({...d,savingsGoals:[...d.savingsGoals,{id:uid(),name:goalForm.name.trim(),target:Number(goalForm.target)||0,saved:Number(goalForm.saved)||0,updatedAt:Date.now()}]}));setGoalForm({name:"",target:"",saved:""})};
@@ -962,14 +983,14 @@ function Finance({ data, patch, initialTab="ledger" }:{data:WorkbenchData;patch:
       <div className="finance-toolbar"><div className="range-tabs">{([["day","当天"],["week","本周"],["month","本月"],["year","本年"]] as const).map(([id,label])=><button className={range===id?"active":""} key={id} onClick={()=>setRange(id)}>{label}</button>)}</div><div><button className="secondary" onClick={()=>setShowCategory(true)}>管理分类</button><button onClick={()=>setEditor("new")}>＋ 记一笔</button></div></div>
       <div className="finance-summary"><article className="income"><span>收入</span><h2>¥ {incomeTotal.toFixed(2)}</h2><p>共记录 {scoped.filter(e=>e.type==="income").length} 笔</p></article><article className="expense"><span>支出</span><h2>¥ {expenseTotal.toFixed(2)}</h2><p>共 {scoped.filter(e=>e.type==="expense").length} 笔</p></article><article className="balance"><span>结余</span><h2>¥ {(incomeTotal-expenseTotal).toFixed(2)}</h2><p>{incomeTotal>=expenseTotal?"当前仍有结余":"当前支出高于收入"}</p></article></div>
       <div className={`chart-grid ${range==="day"?"single-chart":""}`}><article className="donut-card"><div className="finance-card-head"><h2>支出分类</h2><span>金额与占比</span></div><div className="donut-wrap"><div className="donut" style={{background:donut}}><i><b>{expenseGroups.length}</b><small>个分类</small></i></div><div className="donut-legend">{expenseGroups.map(([id,value],i)=><span key={id}><i style={{background:colors[i]}}></i><b>{data.financeCategories.find(c=>c.id===id)?.name}</b><small>¥ {value.toFixed(2)} · {expenseTotal?Math.round(value/expenseTotal*100):0}%</small></span>)}{!expenseGroups.length&&<p>记下支出后，这里会长出一朵分类小花。</p>}</div></div></article>{range!=="day"&&<article className="trend-card"><div className="finance-card-head"><h2>收支趋势</h2><span><i className="green"></i>收入 <i className="pink"></i>支出</span></div><TrendCanvas points={trend}/><div className="trend-labels">{trend.map((p,i)=><span key={i}>{p.label}</span>)}</div></article>}</div>
-      <div className="quick-ledger"><span>✦</span><input value={quick} onChange={e=>setQuick(e.target.value)} onKeyDown={e=>e.key==="Enter"&&parseEntry()} placeholder="试试说：昨天中午吃了水煮肉片花了30" /><button onClick={parseEntry}>自动记账</button></div>
+      <div className="quick-ledger enhanced"><span>✦</span><input value={quick} onChange={e=>setQuick(e.target.value)} onKeyDown={e=>e.key==="Enter"&&parseEntry()} placeholder="试试说：昨天中午吃了水煮肉片花了30" /><button className={listening?"recording":""} onClick={startVoiceEntry} aria-label="语音记账">{listening?"正在听…":"◎ 语音"}</button><label className="receipt-upload">▧ 截图<input type="file" accept="image/*" onChange={readReceipt}/></label><button onClick={()=>parseEntry()}>自动记账</button>{ocrStatus&&<small>{ocrStatus}</small>}</div>
       <section className="ledger-timeline"><div className="finance-card-head"><h2>账目时间线</h2><span>同一天按时间从早到晚</span></div>{[...new Set(scoped.map(e=>e.date))].sort((a,b)=>b.localeCompare(a)).map(date=><div className="ledger-day" key={date}><header><b>{displayDate(date)}</b><span>{weekday(date)}</span></header>{scoped.filter(e=>e.date===date).sort((a,b)=>a.time.localeCompare(b.time)).map(entry=>{const cat=data.financeCategories.find(c=>c.id===entry.categoryId);return <article key={entry.id}><time>{entry.time}</time><i style={{background:cat?.color}}>{entry.type==="income"?"＋":"－"}</i><button onClick={()=>setEditor(entry)}><b>{cat?.name||"未分类"}</b><span>{entry.note}</span></button><strong className={entry.type}>{entry.type==="income"?`+ ¥ ${entry.amount.toFixed(2)}`:`- ¥ ${entry.amount.toFixed(2)}`}</strong><button className="more" onClick={()=>setDeleteTarget({kind:"entry",id:entry.id})}>×</button></article>})}</div>)}{!scoped.length&&<Empty text="这一段时间还没有账目，第一笔也可以很轻松。" />}</section>
       {editor&&<FinanceEditor item={editor==="new"?null:editor} data={data} patch={patch} close={()=>setEditor(null)}/>}
       {showCategory&&<Modal title="添加收支分类" onClose={()=>setShowCategory(false)}><form className="editor-form" onSubmit={saveCategory}><label>类型<select value={categoryForm.type} onChange={e=>setCategoryForm({...categoryForm,type:e.target.value as "income"|"expense"})}><option value="expense">支出</option><option value="income">收入</option></select></label><label>分类名称<input value={categoryForm.name} onChange={e=>setCategoryForm({...categoryForm,name:e.target.value})} required/></label><label>颜色<input type="color" value={categoryForm.color} onChange={e=>setCategoryForm({...categoryForm,color:e.target.value})}/></label><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowCategory(false)}>取消</button><button>保存分类</button></div></form></Modal>}
     </section>}
     {tab==="shopping"&&<section className="shopping-layout">
       <article className="shopping-panel"><div className="finance-card-head"><div><span className="eyebrow">SHOPPING LIST</span><h2>购物清单</h2></div><b>未购买合计 ¥ {unbought.toFixed(2)}</b></div><form className="shop-form" onSubmit={addShopping}><input value={shopForm.name} onChange={e=>setShopForm({...shopForm,name:e.target.value})} placeholder="想买什么？"/><input type="number" value={shopForm.price} onChange={e=>setShopForm({...shopForm,price:e.target.value})} placeholder="价格"/><button>添加</button></form><div className="shopping-list">{data.shoppingItems.map(item=><div key={item.id}><label><input type="checkbox" checked={item.purchased} onChange={()=>patch(d=>({...d,shoppingItems:d.shoppingItems.map(x=>x.id===item.id?{...x,purchased:!x.purchased,updatedAt:Date.now()}:x)}))}/><i></i></label><input className={item.purchased?"strike":""} value={item.name} onChange={e=>patch(d=>({...d,shoppingItems:d.shoppingItems.map(x=>x.id===item.id?{...x,name:e.target.value,updatedAt:Date.now()}:x)}))}/><b>¥ {item.price.toFixed(2)}</b><button onClick={()=>setDeleteTarget({kind:"shop",id:item.id})}>×</button></div>)}</div></article>
-      <article className="savings-panel linked-savings"><div className="finance-card-head"><div><span className="eyebrow">SAVING FOR SHOPPING</span><h2>购物攒钱计划</h2></div><span>每个目标直接对应左侧物品</span></div>{data.shoppingItems.filter(item=>!item.purchased).map(item=>{const pct=item.price?Math.min(100,Math.round((item.saved||0)/item.price*100)):0;return <section className="saving-goal" key={item.id}><header><b>{item.name}</b><span>目标 ¥ {item.price.toFixed(0)}</span></header><div className="saving-numbers"><span>已完成 <b>{pct}%</b></span><span>还差 ¥ {Math.max(0,item.price-(item.saved||0)).toFixed(0)}</span></div><div className="saving-progress"><i style={{width:`${pct}%`}}/></div><label>当前已存<input type="number" min="0" value={item.saved||0} onChange={e=>patch(d=>({...d,shoppingItems:d.shoppingItems.map(x=>x.id===item.id?{...x,saved:Number(e.target.value),updatedAt:Date.now()}:x)}))}/></label></section>})}{!data.shoppingItems.some(item=>!item.purchased)&&<p className="goal-empty">购物清单都已完成。</p>}</article>
+      <article className="savings-panel linked-savings"><div className="finance-card-head"><div><span className="eyebrow">SAVINGS PLANS</span><h2>攒钱计划</h2></div><span>每一次积累，都在让期待更靠近。</span></div><form className="goal-money-form compact" onSubmit={addGoal}><input value={goalForm.name} onChange={e=>setGoalForm({...goalForm,name:e.target.value})} placeholder="计划名称"/><input type="number" min="0" value={goalForm.target} onChange={e=>setGoalForm({...goalForm,target:e.target.value})} placeholder="目标金额"/><input type="number" min="0" value={goalForm.saved} onChange={e=>setGoalForm({...goalForm,saved:e.target.value})} placeholder="已存金额"/><button>＋ 新建计划</button></form>{data.savingsGoals.map(goal=>{const pct=goal.target?Math.min(100,Math.round(goal.saved/goal.target*100)):0;return <section className="saving-goal editable" key={goal.id}><header><input value={goal.name} onChange={e=>patch(d=>({...d,savingsGoals:d.savingsGoals.map(x=>x.id===goal.id?{...x,name:e.target.value,updatedAt:Date.now()}:x)}))}/><button onClick={()=>setDeleteTarget({kind:"goal",id:goal.id})} aria-label={`删除${goal.name}`}>×</button></header><div className="saving-numbers"><span>已完成 <b>{pct}%</b></span><span>还差 ¥ {Math.max(0,goal.target-goal.saved).toFixed(0)}</span></div><div className="saving-progress"><i style={{width:`${pct}%`}}/></div><div className="saving-fields"><label>目标金额<input type="number" min="0" value={goal.target} onChange={e=>patch(d=>({...d,savingsGoals:d.savingsGoals.map(x=>x.id===goal.id?{...x,target:Number(e.target.value),updatedAt:Date.now()}:x)}))}/></label><label>当前已存<input type="number" min="0" value={goal.saved} onChange={e=>patch(d=>({...d,savingsGoals:d.savingsGoals.map(x=>x.id===goal.id?{...x,saved:Number(e.target.value),updatedAt:Date.now()}:x)}))}/></label></div></section>})}{!data.savingsGoals.length&&<p className="goal-empty">写下第一个目标，从一小步开始积累。</p>}</article>
     </section>}
     {tab==="advice"&&<section className="advice-layout">
       <article className="income-setting"><span className="eyebrow">PRIVATE INPUT</span><h2>收入设置</h2><div><input type="password" inputMode="decimal" value={incomeInput} onChange={e=>setIncomeInput(e.target.value)} placeholder={data.financeSettings.monthlyIncome?"当前收入已安全保存，可重新录入":"输入月收入"}/><button onClick={()=>{const amount=Number(incomeInput);if(amount>0){patch(d=>{const category=d.financeCategories.find(c=>c.type==="income"&&c.name==="工资");const month=today.slice(0,7);const existing=category&&d.financeEntries.find(e=>e.categoryId===category.id&&e.date.startsWith(month));return {...d,financeSettings:{monthlyIncome:amount,updatedAt:Date.now()},financeEntries:existing?d.financeEntries.map(e=>e.id===existing.id?{...e,amount,note:"本月到手工资",updatedAt:Date.now()}:e):category?[...d.financeEntries,{id:uid(),type:"income",categoryId:category.id,amount,note:"本月到手工资",date:today,time:"09:00",updatedAt:Date.now()}]:d.financeEntries}});setIncomeInput("")}}}>保存</button></div><small>数据仅保存在此设备，不会上传。</small></article>

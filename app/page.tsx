@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-type View = "home" | "calendar" | "growth" | "health" | "finance" | "jobs" | "travel" | "memos";
+type View = "home" | "calendar" | "growth" | "health" | "finance" | "jobs" | "travel" | "memos" | "cats";
 type Category = { id: string; name: string; color: string };
 type EventItem = { id: string; date: string; start: string; end: string; title: string; categoryId: string; updatedAt: number };
 type Todo = { id: string; date: string; text: string; done: boolean; order: number; updatedAt: number };
@@ -31,6 +31,11 @@ type PackingItem = { id:string; category:string; name:string; checked:boolean };
 type TravelPlan = { id:string; name:string; startDate:string; endDate:string; itinerary:ItineraryItem[]; packing:PackingItem[]; updatedAt:number };
 type SpecialCategory = { id:string; name:string; icon:string; order:number; updatedAt:number };
 type SpecialDay = { id:string; title:string; date:string; kind:string; calendar:"公历"|"农历"; lunarDate?:string; lunarMonth?:number; lunarDay?:number; reminderDays:number; recurrence?:"weekly"|"monthly"|"yearly"; weekday?:number; monthDay?:number; month?:number; updatedAt:number };
+type CatProfile = { id:string; name:string; photo?:string; birthday:string; breed:string; sex:"妹妹"|"弟弟"|"未知"; homeDate:string; neutered:boolean; updatedAt:number };
+type CatCare = { id:string; catId:string; title:string; date:string; done:boolean; order:number; updatedAt:number };
+type CatGrowth = { id:string; catId:string; date:string; title:string; note:string; photo?:string; updatedAt:number };
+type CatHealth = { id:string; catId:string; kind:"疫苗"|"驱虫"|"体检"|"复查"|"用药"|"其他"; title:string; date:string; note:string; done:boolean; updatedAt:number };
+type CatWeight = { id:string; catId:string; date:string; weight:number; updatedAt:number };
 type WorkbenchData = {
   version: 1;
   exportedAt?: number;
@@ -59,6 +64,11 @@ type WorkbenchData = {
   packingTemplate: PackingItem[];
   specialCategories: SpecialCategory[];
   specialDays: SpecialDay[];
+  catProfiles: CatProfile[];
+  catCare: CatCare[];
+  catGrowth: CatGrowth[];
+  catHealth: CatHealth[];
+  catWeights: CatWeight[];
 };
 
 const STORAGE_KEY = "bear-workbench-v1";
@@ -333,6 +343,14 @@ const phaseSixDefaults = (now=Date.now()) => {
   };
 };
 
+const catDefaults=(now=Date.now())=>({
+  catProfiles:[] as CatProfile[],
+  catCare:[] as CatCare[],
+  catGrowth:[] as CatGrowth[],
+  catHealth:[] as CatHealth[],
+  catWeights:[] as CatWeight[],
+});
+
 const seedData = (): WorkbenchData => {
   const today = todayKey();
   const tomorrow = new Date();
@@ -346,6 +364,7 @@ const seedData = (): WorkbenchData => {
     ...phaseFourDefaults(now),
     ...phaseFiveDefaults(now),
     ...phaseSixDefaults(now),
+    ...catDefaults(now),
     events: [
       { id: uid(), date: today, start: "09:30", end: "10:30", title: "整理本周 RPA 任务", categoryId: "work", updatedAt: now },
       { id: uid(), date: today, start: "18:30", end: "19:30", title: "普拉提课程", categoryId: "sport", updatedAt: now },
@@ -371,6 +390,7 @@ const nav: { id: View; label: string; icon: string }[] = [
   { id: "jobs", label: "招聘", icon: "♢" },
   { id: "travel", label: "旅行", icon: "✈" },
   { id: "memos", label: "备忘", icon: "☷" },
+  { id: "cats", label: "猫咪", icon: "🐾" },
 ];
 
 const greetings = [
@@ -400,6 +420,7 @@ function useWorkbench() {
         const financeDefaults = phaseFourDefaults();
         const jobDefaults = phaseFiveDefaults();
         const travelDefaults = phaseSixDefaults();
+        const petDefaults = catDefaults();
         const shouldCleanSalary = localStorage.getItem(SALARY_CLEANUP_KEY)!=="done";
         const shouldCleanGrowth = localStorage.getItem(GROWTH_CLEANUP_KEY)!=="done";
         const shouldCleanJobFilters = localStorage.getItem(JOB_FILTER_CLEANUP_KEY)!=="done";
@@ -443,6 +464,11 @@ function useWorkbench() {
           packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
           specialCategories: Array.isArray(parsed.specialCategories) ? parsed.specialCategories : travelDefaults.specialCategories,
           specialDays: withKnownSpecials(Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays),
+          catProfiles: Array.isArray(parsed.catProfiles) ? parsed.catProfiles : petDefaults.catProfiles,
+          catCare: Array.isArray(parsed.catCare) ? parsed.catCare : petDefaults.catCare,
+          catGrowth: Array.isArray(parsed.catGrowth) ? parsed.catGrowth : petDefaults.catGrowth,
+          catHealth: Array.isArray(parsed.catHealth) ? parsed.catHealth : petDefaults.catHealth,
+          catWeights: Array.isArray(parsed.catWeights) ? parsed.catWeights : petDefaults.catWeights,
         });
       } else setData(seedData());
     } catch {
@@ -551,6 +577,7 @@ export default function Home() {
         const financeDefaults = phaseFourDefaults();
         const jobDefaults = phaseFiveDefaults();
         const travelDefaults = phaseSixDefaults();
+        const petDefaults = catDefaults();
         const cleanFinance = withoutStoredSalary(parsed,financeDefaults);
         setPendingImport({
           ...parsed,
@@ -575,6 +602,11 @@ export default function Home() {
           packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
           specialCategories: Array.isArray(parsed.specialCategories) ? parsed.specialCategories : travelDefaults.specialCategories,
           specialDays: withKnownSpecials(Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays),
+          catProfiles: Array.isArray(parsed.catProfiles) ? parsed.catProfiles : petDefaults.catProfiles,
+          catCare: Array.isArray(parsed.catCare) ? parsed.catCare : petDefaults.catCare,
+          catGrowth: Array.isArray(parsed.catGrowth) ? parsed.catGrowth : petDefaults.catGrowth,
+          catHealth: Array.isArray(parsed.catHealth) ? parsed.catHealth : petDefaults.catHealth,
+          catWeights: Array.isArray(parsed.catWeights) ? parsed.catWeights : petDefaults.catWeights,
         });
         setImportMode("merge");
       } catch { alert("这个文件不是有效的小熊工作台数据。"); }
@@ -621,6 +653,11 @@ export default function Home() {
         packingTemplate: pendingImport.packingTemplate.length ? pendingImport.packingTemplate : current.packingTemplate,
         specialCategories: merge(current.specialCategories, pendingImport.specialCategories),
         specialDays: merge(current.specialDays, pendingImport.specialDays),
+        catProfiles: merge(current.catProfiles, pendingImport.catProfiles),
+        catCare: merge(current.catCare, pendingImport.catCare),
+        catGrowth: merge(current.catGrowth, pendingImport.catGrowth),
+        catHealth: merge(current.catHealth, pendingImport.catHealth),
+        catWeights: merge(current.catWeights, pendingImport.catWeights),
       };
     });
     setPendingImport(null); setImportMode(null);
@@ -643,7 +680,8 @@ export default function Home() {
         {view === "jobs" && <Jobs data={data} patch={patch} />}
         {view === "travel" && <Travel data={data} patch={patch} />}
         {view === "memos" && <Memos data={data} go={go} toggleTodo={toggleTodo} move={move} onAdd={() => setMemoModal(true)} onDelete={setDeleteTarget} patch={patch} />}
-        {!["home","calendar","growth","health","finance","jobs","travel","memos"].includes(view) && <ComingSoon view={view} />}
+        {view === "cats" && <Cats data={data} patch={patch} />}
+        {!["home","calendar","growth","health","finance","jobs","travel","memos","cats"].includes(view) && <ComingSoon view={view} />}
       </main>
 
       <nav className="mobile-nav">{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span></button>)}</nav>
@@ -696,6 +734,10 @@ function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: Workbench
   const savingDone=data.shoppingItems.filter(x=>!x.purchased).reduce((sum,x)=>sum+Math.min(x.saved||0,x.price),0);
   const savingProgress=savingTarget?Math.min(100,Math.round(savingDone/savingTarget*100)):0;
   const phase=data.healthSettings.privacy?"隐私模式":cycleInfo(data).phase;
+  const homeCat=data.catProfiles[0];
+  const homeCatCare=homeCat?data.catCare.filter(x=>x.catId===homeCat.id&&x.date===today):[];
+  const homeCatWeight=homeCat?[...data.catWeights].filter(x=>x.catId===homeCat.id).sort((a,b)=>b.date.localeCompare(a.date))[0]:undefined;
+  const homeCatReminder=homeCat?[...data.catHealth].filter(x=>x.catId===homeCat.id&&!x.done&&x.date>=today).sort((a,b)=>a.date.localeCompare(b.date))[0]:undefined;
   const weatherLead=homeWeather?homeWeather.code>=50?`${location.city}今天有雨、体感约 ${Math.round(homeWeather.apparent)}°C，记得带伞；`:`${location.city}今天体感约 ${Math.round(homeWeather.apparent)}°C，适合适度活动；`:"今天按自己的体感安排节奏；";
   const phaseTip=phase==="月经期"?"以保暖、补水和轻柔活动为主。":phase==="卵泡期"?"能量通常在回升，可以循序增加活动量。":phase==="排卵期"?"状态活跃时也要充分热身、注意关节稳定。":phase==="黄体期"?"给睡眠和稳定饮食多一点优先级。":"规律吃饭、适量活动，也记得留一点休息时间。";
   const healthTip=`${weatherLead}${phaseTip}`;
@@ -718,6 +760,7 @@ function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: Workbench
       <section className="month-status"><div className="insight-head"><div><span className="eyebrow">THIS MONTH</span><h2>本月状态</h2></div></div><div className="month-metrics"><button onClick={()=>goSection("finance","shopping")}><i className="saving-ring" style={{"--saving-progress":`${savingProgress*3.6}deg`} as React.CSSProperties}><b>{savingProgress}%</b></i><span>储蓄进度</span></button><button onClick={()=>goSection("health","fitness")}><b>{workoutCount}<small> 次</small></b><span>运动完成</span></button><button onClick={()=>goSection("growth","learn")}><b>{learningDays}<small> 天</small></b><span>学习记录</span></button></div></section>
       <button className="health-glance" onClick={()=>goSection("health","care")}><div className="insight-head"><div><span className="eyebrow">TODAY&apos;S WELLNESS</span><h2>今日健康提示</h2></div><i>{homeWeather?.code&&homeWeather.code>=50?"☂":"♡"}</i></div><p>{healthTip}</p><span>查看保养建议 →</span></button>
     </section>
+    <button className="home-cat-card" onClick={()=>go("cats")}><div className="cat-home-avatar">{homeCat?.photo?<img src={homeCat.photo} alt={homeCat.name}/>:<span>🐾</span>}</div><div><span className="eyebrow">MY LITTLE CAT</span><h2>{homeCat?`${homeCat.name}的今天`:"猫咪今日"}</h2><p>{homeCat?homeCatReminder?`下一项：${displayDate(homeCatReminder.date)} ${homeCatReminder.title}`:"今天没有临近的健康提醒":"建立猫咪档案，开始记录一起生活的每一天。"}</p></div>{homeCat&&<div className="cat-home-metrics"><b>{homeCatCare.filter(x=>x.done).length}/{homeCatCare.length}<small> 今日照护</small></b><b>{homeCatWeight?`${homeCatWeight.weight} kg`:"—"}<small> 最近体重</small></b></div>}<i>记录今天 →</i></button>
     {showPromoReminders&&<Modal title="未来三天 · 商家优惠活动" onClose={()=>setShowPromoReminders(false)}><div className="home-promo-list">{promoReminders.map(x=><section key={x.item.id}><time>{x.date===today?"今天":`${dateDiff(today,x.date)} 天后`} · {displayDate(x.date)}</time><p><i>％</i>{x.item.title}</p></section>)}</div></Modal>}
     {deleteTodo&&<Modal title="删除这个临时待办吗？" onClose={()=>setDeleteTodo(null)}><p className="modal-copy">它也会同时从日历和备忘中的 To-do 汇总里移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTodo(null)}>先保留</button><button className="danger" onClick={()=>{patch(x=>({...x,todos:x.todos.filter(y=>y.id!==deleteTodo)}));setDeleteTodo(null)}}>确认删除</button></div></Modal>}
     {deleteMemo&&<Modal title="删除这条快速备忘吗？" onClose={()=>setDeleteMemo(null)}><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteMemo(null)}>先保留</button><button className="danger" onClick={()=>{patch(x=>({...x,memos:x.memos.filter(y=>y.id!==deleteMemo)}));setDeleteMemo(null)}}>确认删除</button></div></Modal>}
@@ -752,7 +795,7 @@ function Calendar({ data, dates, selectedDate, setSelectedDate, category, toggle
     <header className="page-head"><div><span className="eyebrow">MY WEEK</span><h1>本周日程与待办</h1></div><button onClick={onAdd}>＋ 新建日程</button></header>
     <div className="quick-parse"><span>✦</span><input value={quickText} onChange={e=>setQuickText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&parseQuick()} placeholder="试试说：后天下午 3 点半普拉提" /><button onClick={parseQuick}>帮我记下</button></div>
     <div className="week-nav"><button onClick={()=>setSelectedDate(addDays(weekDates[0],-7))}>← 上一周</button><b>{displayDate(weekDates[0])} — {displayDate(weekDates[6])}</b><button onClick={()=>setSelectedDate(addDays(weekDates[0],7))}>下一周 →</button></div>
-    <div className="week-calendar">{weekDates.map(date=>{const dayEvents=data.events.filter((e:EventItem)=>e.date===date).sort((a:EventItem,b:EventItem)=>a.start.localeCompare(b.start));const dayTodos=data.todos.filter((t:Todo)=>t.date===date).sort((a:Todo,b:Todo)=>a.order-b.order);const daySpecials=specialDaysForDate(data.specialDays,date);const dayPromos=daySpecials.filter((x:SpecialDay)=>x.id.startsWith("promo-"));const otherSpecials=daySpecials.filter((x:SpecialDay)=>!x.id.startsWith("promo-"));return <section key={date} className={`week-day ${date===todayKey()?"today":""}`}><header><div className="week-date"><small>{weekday(date)}</small><b>{new Date(`${date}T12:00:00`).getDate()}</b><span>{new Date(`${date}T12:00:00`).getMonth()+1}月</span></div><div className="week-day-title"><h2>{date===todayKey()?"今天":displayDate(date)}</h2><div className="calendar-checkins">{periodMark(date)&&<b>✿ {periodMark(date)==="actual"?"经期":"预测"}</b>}{data.healthLogs.some((l:HealthLog)=>l.date===date&&l.trained)&&<b>✓ 训练</b>}{dayPromos.length>0&&<button onClick={()=>setPromoDate(date)}>％ 商家优惠活动 <small>{dayPromos.length} 项</small></button>}{otherSpecials.map((x:SpecialDay)=><b key={x.id}>{x.kind==="生日"?"🎂":x.kind==="纪念日"?"♡":"✦"} {x.title}</b>)}</div></div><button onClick={()=>{setSelectedDate(date);onAdd()}}>＋ 日程</button></header><div className="week-day-body"><div className="week-events"><h3>日程 <span>{dayEvents.length}</span></h3>{dayEvents.map((e:EventItem)=><article className="event-card" key={e.id} style={{"--event":category(e.categoryId).color} as React.CSSProperties}><time>{e.start}<small>{e.end}</small></time><i></i><div><span>{category(e.categoryId).name}</span><button onClick={()=>onEdit(e)}>{e.title}</button></div><button className="more" onClick={()=>onDelete({kind:"event",id:e.id})}>×</button></article>)}{!dayEvents.length&&<p className="week-empty">没有日程，时间可以自由安排。</p>}</div><div className="week-todos"><div className="todo-head"><h3>To-do</h3><span>{dayTodos.filter((t:Todo)=>t.done).length} / {dayTodos.length}</span></div>{dayTodos.map((t:Todo)=><div className="todo-row" key={t.id}><label><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)}/><i></i><input className={t.done?"strike":""} value={t.text} onChange={e=>patch((d:WorkbenchData)=>({...d,todos:d.todos.map(x=>x.id===t.id?{...x,text:e.target.value,updatedAt:Date.now()}:x)}))}/></label><div><button onClick={()=>move("todo",t.id,-1)}>↑</button><button onClick={()=>move("todo",t.id,1)}>↓</button><button onClick={()=>onDelete({kind:"todo",id:t.id})}>×</button></div></div>)}<form className="add-todo" onSubmit={e=>addTodo(e,date)}><input value={todoDrafts[date]||""} onChange={e=>setTodoDrafts(x=>({...x,[date]:e.target.value}))} placeholder="添加待办…"/><button>添加</button></form></div></div></section>})}</div>
+    <div className="week-calendar">{weekDates.map(date=>{const dayEvents=data.events.filter((e:EventItem)=>e.date===date).sort((a:EventItem,b:EventItem)=>a.start.localeCompare(b.start));const dayTodos=data.todos.filter((t:Todo)=>t.date===date).sort((a:Todo,b:Todo)=>a.order-b.order);const catReminders=data.catHealth.filter((x:CatHealth)=>x.date===date&&!x.done);const daySpecials=specialDaysForDate(data.specialDays,date);const dayPromos=daySpecials.filter((x:SpecialDay)=>x.id.startsWith("promo-"));const otherSpecials=daySpecials.filter((x:SpecialDay)=>!x.id.startsWith("promo-"));return <section key={date} className={`week-day ${date===todayKey()?"today":""}`}><header><div className="week-date"><small>{weekday(date)}</small><b>{new Date(`${date}T12:00:00`).getDate()}</b><span>{new Date(`${date}T12:00:00`).getMonth()+1}月</span></div><div className="week-day-title"><h2>{date===todayKey()?"今天":displayDate(date)}</h2><div className="calendar-checkins">{periodMark(date)&&<b>✿ {periodMark(date)==="actual"?"经期":"预测"}</b>}{data.healthLogs.some((l:HealthLog)=>l.date===date&&l.trained)&&<b>✓ 训练</b>}{catReminders.map((x:CatHealth)=><b className="cat-calendar-reminder" key={x.id}>🐾 {data.catProfiles.find((cat:CatProfile)=>cat.id===x.catId)?.name||"猫咪"} · {x.title}</b>)}{dayPromos.length>0&&<button onClick={()=>setPromoDate(date)}>％ 商家优惠活动 <small>{dayPromos.length} 项</small></button>}{otherSpecials.map((x:SpecialDay)=><b key={x.id}>{x.kind==="生日"?"🎂":x.kind==="纪念日"?"♡":"✦"} {x.title}</b>)}</div></div><button onClick={()=>{setSelectedDate(date);onAdd()}}>＋ 日程</button></header><div className="week-day-body"><div className="week-events"><h3>日程 <span>{dayEvents.length}</span></h3>{dayEvents.map((e:EventItem)=><article className="event-card" key={e.id} style={{"--event":category(e.categoryId).color} as React.CSSProperties}><time>{e.start}<small>{e.end}</small></time><i></i><div><span>{category(e.categoryId).name}</span><button onClick={()=>onEdit(e)}>{e.title}</button></div><button className="more" onClick={()=>onDelete({kind:"event",id:e.id})}>×</button></article>)}{!dayEvents.length&&<p className="week-empty">没有日程，时间可以自由安排。</p>}</div><div className="week-todos"><div className="todo-head"><h3>To-do</h3><span>{dayTodos.filter((t:Todo)=>t.done).length} / {dayTodos.length}</span></div>{dayTodos.map((t:Todo)=><div className="todo-row" key={t.id}><label><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)}/><i></i><input className={t.done?"strike":""} value={t.text} onChange={e=>patch((d:WorkbenchData)=>({...d,todos:d.todos.map(x=>x.id===t.id?{...x,text:e.target.value,updatedAt:Date.now()}:x)}))}/></label><div><button onClick={()=>move("todo",t.id,-1)}>↑</button><button onClick={()=>move("todo",t.id,1)}>↓</button><button onClick={()=>onDelete({kind:"todo",id:t.id})}>×</button></div></div>)}<form className="add-todo" onSubmit={e=>addTodo(e,date)}><input value={todoDrafts[date]||""} onChange={e=>setTodoDrafts(x=>({...x,[date]:e.target.value}))} placeholder="添加待办…"/><button>添加</button></form></div></div></section>})}</div>
     {promoDate&&<Modal title={`${displayDate(promoDate)} · 商家优惠活动`} onClose={()=>setPromoDate(null)}><div className="calendar-promo-list">{specialDaysForDate(data.specialDays,promoDate).filter((x:SpecialDay)=>x.id.startsWith("promo-")).map((x:SpecialDay)=><p key={x.id}><i>％</i><span>{x.title}</span></p>)}</div></Modal>}
   </div>;
 }
@@ -1312,6 +1355,42 @@ function Travel({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>Wo
     {showTrip&&<Modal title="创建旅行计划" onClose={()=>setShowTrip(false)}><form className="editor-form" onSubmit={addTrip}><label>旅行名称<input value={tripForm.name} onChange={e=>setTripForm({...tripForm,name:e.target.value})} placeholder="例如：济州岛四日慢旅行" required/></label><div className="two-col"><label>出发日期<input type="date" value={tripForm.startDate} onChange={e=>setTripForm({...tripForm,startDate:e.target.value})}/></label><label>返程日期<input type="date" min={tripForm.startDate} value={tripForm.endDate} onChange={e=>setTripForm({...tripForm,endDate:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowTrip(false)}>取消</button><button>创建并带入清单</button></div></form></Modal>}
     {deleteTarget&&<Modal title="确认删除这项内容吗？" onClose={()=>setDeleteTarget(null)}><p className="modal-copy">删除后会从当前设备和后续导出的 JSON 中移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTarget(null)}>先保留</button><button className="danger" onClick={remove}>确认删除</button></div></Modal>}
   </div>;
+}
+
+function Cats({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void}) {
+  const today=todayKey();
+  const [catId,setCatId]=useState(data.catProfiles[0]?.id||"");
+  const cat=data.catProfiles.find(x=>x.id===catId)||data.catProfiles[0];
+  const [showProfile,setShowProfile]=useState(!cat);
+  const [profile,setProfile]=useState({name:cat?.name||"",birthday:cat?.birthday||"",breed:cat?.breed||"",sex:cat?.sex||"未知" as CatProfile["sex"],homeDate:cat?.homeDate||"",neutered:cat?.neutered||false,photo:cat?.photo||""});
+  const [careTitle,setCareTitle]=useState("");
+  const [growth,setGrowth]=useState({title:"",note:"",date:today,photo:""});
+  const [health,setHealth]=useState({kind:"驱虫" as CatHealth["kind"],title:"",date:today,note:""});
+  const [weight,setWeight]=useState("");
+  useEffect(()=>{if(cat){setProfile({name:cat.name,birthday:cat.birthday,breed:cat.breed,sex:cat.sex,homeDate:cat.homeDate,neutered:cat.neutered,photo:cat.photo||""})}},[cat?.id]);
+  const readImage=(file:File|undefined,done:(value:string)=>void)=>{if(!file)return;const reader=new FileReader();reader.onload=()=>done(String(reader.result));reader.readAsDataURL(file)};
+  const saveProfile=(e:FormEvent)=>{e.preventDefault();if(!profile.name.trim())return;const id=cat?.id||uid();const item:CatProfile={id,name:profile.name.trim(),birthday:profile.birthday,breed:profile.breed.trim(),sex:profile.sex,homeDate:profile.homeDate,neutered:profile.neutered,photo:profile.photo||undefined,updatedAt:Date.now()};patch(d=>({...d,catProfiles:cat?d.catProfiles.map(x=>x.id===cat.id?item:x):[...d.catProfiles,item],catCare:cat?d.catCare:[...d.catCare,...["喂食","换水","铲屎"].map((title,order)=>({id:uid(),catId:id,title,date:today,done:false,order,updatedAt:Date.now()}))]}));setCatId(id);setShowProfile(false)};
+  const newCat=()=>{setCatId("");setProfile({name:"",birthday:"",breed:"",sex:"未知",homeDate:"",neutered:false,photo:""});setShowProfile(true)};
+  const cares=cat?data.catCare.filter(x=>x.catId===cat.id&&x.date===today).sort((a,b)=>a.order-b.order):[];
+  const weights=cat?[...data.catWeights].filter(x=>x.catId===cat.id).sort((a,b)=>a.date.localeCompare(b.date)).slice(-8):[];
+  const maxWeight=Math.max(...weights.map(x=>x.weight),1);
+  const reminders=cat?[...data.catHealth].filter(x=>x.catId===cat.id).sort((a,b)=>a.date.localeCompare(b.date)):[];
+  const stories=cat?[...data.catGrowth].filter(x=>x.catId===cat.id).sort((a,b)=>b.date.localeCompare(a.date)):[];
+  const ageText=cat?.birthday?`${Math.max(0,Math.floor(dateDiff(cat.birthday,today)/30))} 个月`:"生日待补充";
+  return <div className="page cats-page">
+    <header className="page-head cat-page-head"><div><span className="eyebrow">LITTLE PAWPRINTS</span><h1>猫咪成长记录</h1><p>把健康、成长和一起生活的小瞬间，温柔地收在这里。</p></div><button onClick={newCat}>＋ 添加猫咪</button></header>
+    {data.catProfiles.length>0&&<div className="cat-switcher">{data.catProfiles.map(x=><button className={cat?.id===x.id?"active":""} key={x.id} onClick={()=>setCatId(x.id)}>{x.photo?<img src={x.photo} alt=""/>:<i>🐾</i>}<span>{x.name}</span></button>)}</div>}
+    {!cat?<section className="cat-welcome"><span>🐾</span><h2>先认识一下你的小猫</h2><p>填写一张简单的档案，之后的照护、体重和健康记录都会归到它名下。</p><button onClick={newCat}>建立猫咪档案</button></section>:<>
+      <section className="cat-profile-card"><div className="cat-portrait">{cat.photo?<img src={cat.photo} alt={cat.name}/>:<span>🐱</span>}</div><div><span className="eyebrow">CAT PROFILE</span><h2>{cat.name}</h2><p>{cat.breed||"品种待补充"} · {cat.sex} · {ageText}</p><div className="cat-tags"><span>{cat.neutered?"已绝育":"未绝育"}</span>{cat.homeDate&&<span>{displayDate(cat.homeDate)} 到家</span>}</div></div><button onClick={()=>setShowProfile(true)}>编辑档案</button></section>
+      <div className="cat-dashboard-grid">
+        <section className="cat-panel cat-care-panel"><div className="cat-section-head"><div><span className="eyebrow">TODAY&apos;S CARE</span><h2>今日照护</h2></div><b>{cares.filter(x=>x.done).length}/{cares.length}</b></div><div className="cat-care-list">{cares.map(item=><article key={item.id}><label><input type="checkbox" checked={item.done} onChange={()=>patch(d=>({...d,catCare:d.catCare.map(x=>x.id===item.id?{...x,done:!x.done,updatedAt:Date.now()}:x)}))}/><i></i><input value={item.title} onChange={e=>patch(d=>({...d,catCare:d.catCare.map(x=>x.id===item.id?{...x,title:e.target.value,updatedAt:Date.now()}:x)}))}/></label><button onClick={()=>patch(d=>({...d,catCare:d.catCare.filter(x=>x.id!==item.id)}))}>×</button></article>)}</div><form className="cat-inline-form" onSubmit={e=>{e.preventDefault();if(!careTitle.trim())return;patch(d=>({...d,catCare:[...d.catCare,{id:uid(),catId:cat.id,title:careTitle.trim(),date:today,done:false,order:cares.length,updatedAt:Date.now()}]}));setCareTitle("")}}><input value={careTitle} onChange={e=>setCareTitle(e.target.value)} placeholder="添加喂药、梳毛等照护"/><button>＋</button></form></section>
+        <section className="cat-panel"><div className="cat-section-head"><div><span className="eyebrow">WEIGHT CURVE</span><h2>体重趋势</h2></div><b>{weights.at(-1)?.weight||"—"} kg</b></div><div className="cat-weight-chart">{weights.length?weights.map(x=><div key={x.id}><span style={{height:`${Math.max(12,x.weight/maxWeight*100)}%`}} title={`${x.weight} kg`}></span><small>{displayDate(x.date)}</small><b>{x.weight}</b></div>):<p>记录第一次体重后，这里会出现趋势。</p>}</div><form className="cat-inline-form weight" onSubmit={e=>{e.preventDefault();const value=Number(weight);if(!value)return;patch(d=>({...d,catWeights:[...d.catWeights,{id:uid(),catId:cat.id,date:today,weight:value,updatedAt:Date.now()}]}));setWeight("")}}><input type="number" step=".01" min=".1" value={weight} onChange={e=>setWeight(e.target.value)} placeholder="今天的体重（kg）"/><button>记录</button></form></section>
+      </div>
+      <section className="cat-panel cat-health-panel"><div className="cat-section-head"><div><span className="eyebrow">HEALTH REMINDERS</span><h2>健康提醒</h2></div></div><form className="cat-health-form" onSubmit={e=>{e.preventDefault();if(!health.title.trim())return;patch(d=>({...d,catHealth:[...d.catHealth,{id:uid(),catId:cat.id,kind:health.kind,title:health.title.trim(),date:health.date,note:health.note.trim(),done:false,updatedAt:Date.now()}]}));setHealth({...health,title:"",note:""})}}><select value={health.kind} onChange={e=>setHealth({...health,kind:e.target.value as CatHealth["kind"]})}>{["疫苗","驱虫","体检","复查","用药","其他"].map(x=><option key={x}>{x}</option>)}</select><input value={health.title} onChange={e=>setHealth({...health,title:e.target.value})} placeholder="例如：体内驱虫"/><input type="date" value={health.date} onChange={e=>setHealth({...health,date:e.target.value})}/><input value={health.note} onChange={e=>setHealth({...health,note:e.target.value})} placeholder="备注（选填）"/><button>添加提醒</button></form><div className="cat-reminder-list">{reminders.map(item=><article className={item.done?"done":""} key={item.id}><button onClick={()=>patch(d=>({...d,catHealth:d.catHealth.map(x=>x.id===item.id?{...x,done:!x.done,updatedAt:Date.now()}:x)}))}>{item.done?"✓":"○"}</button><time>{displayDate(item.date)}</time><div><b>{item.kind} · {item.title}</b>{item.note&&<p>{item.note}</p>}</div><button onClick={()=>patch(d=>({...d,catHealth:d.catHealth.filter(x=>x.id!==item.id)}))}>删除</button></article>)}</div></section>
+      <section className="cat-panel cat-growth-panel"><div className="cat-section-head"><div><span className="eyebrow">GROWTH TIMELINE</span><h2>成长时间轴</h2></div></div><form className="cat-growth-form" onSubmit={e=>{e.preventDefault();if(!growth.title.trim())return;patch(d=>({...d,catGrowth:[...d.catGrowth,{id:uid(),catId:cat.id,date:growth.date,title:growth.title.trim(),note:growth.note.trim(),photo:growth.photo||undefined,updatedAt:Date.now()}]}));setGrowth({title:"",note:"",date:today,photo:""})}}><input type="date" value={growth.date} onChange={e=>setGrowth({...growth,date:e.target.value})}/><input value={growth.title} onChange={e=>setGrowth({...growth,title:e.target.value})} placeholder="今天发生了什么？"/><textarea value={growth.note} onChange={e=>setGrowth({...growth,note:e.target.value})} placeholder="写下一点细节…"/><label className="cat-photo-upload">＋ 照片<input type="file" accept="image/*" onChange={e=>readImage(e.target.files?.[0],photo=>setGrowth({...growth,photo}))}/></label><button>保存成长记录</button></form><div className="cat-timeline">{stories.map(item=><article key={item.id}>{item.photo&&<img src={item.photo} alt=""/>}<div><time>{displayDate(item.date)}</time><h3>{item.title}</h3>{item.note&&<p>{item.note}</p>}</div><button onClick={()=>patch(d=>({...d,catGrowth:d.catGrowth.filter(x=>x.id!==item.id)}))}>×</button></article>)}{!stories.length&&<Empty text="第一段成长故事，正在等你写下。" />}</div></section>
+    </>}
+    {showProfile&&<Modal title={cat?"编辑猫咪档案":"建立猫咪档案"} onClose={()=>{setShowProfile(false);if(!cat&&data.catProfiles[0])setCatId(data.catProfiles[0].id)}}><form className="editor-form" onSubmit={saveProfile}><label className="cat-profile-photo">{profile.photo?<img src={profile.photo} alt="猫咪头像"/>:<span>🐱</span>}<b>选择头像</b><input type="file" accept="image/*" onChange={e=>readImage(e.target.files?.[0],photo=>setProfile({...profile,photo}))}/></label><div className="two-col"><label>名字<input value={profile.name} onChange={e=>setProfile({...profile,name:e.target.value})} required/></label><label>品种<input value={profile.breed} onChange={e=>setProfile({...profile,breed:e.target.value})} placeholder="例如：英短"/></label></div><div className="two-col"><label>生日<input type="date" value={profile.birthday} onChange={e=>setProfile({...profile,birthday:e.target.value})}/></label><label>到家日期<input type="date" value={profile.homeDate} onChange={e=>setProfile({...profile,homeDate:e.target.value})}/></label></div><div className="two-col"><label>性别<select value={profile.sex} onChange={e=>setProfile({...profile,sex:e.target.value as CatProfile["sex"]})}><option>妹妹</option><option>弟弟</option><option>未知</option></select></label><label className="check-label"><input type="checkbox" checked={profile.neutered} onChange={e=>setProfile({...profile,neutered:e.target.checked})}/> 已绝育</label></div><div className="modal-actions">{cat&&<button type="button" className="danger secondary" onClick={()=>{patch(d=>({...d,catProfiles:d.catProfiles.filter(x=>x.id!==cat.id),catCare:d.catCare.filter(x=>x.catId!==cat.id),catGrowth:d.catGrowth.filter(x=>x.catId!==cat.id),catHealth:d.catHealth.filter(x=>x.catId!==cat.id),catWeights:d.catWeights.filter(x=>x.catId!==cat.id)}));setCatId(data.catProfiles.find(x=>x.id!==cat.id)?.id||"");setShowProfile(false)}}>删除档案</button>}<button>保存档案</button></div></form></Modal>}
+  </div>
 }
 
 function ComingSoon({view}:{view:View}) {

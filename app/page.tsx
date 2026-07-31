@@ -323,7 +323,6 @@ const seedData = (): WorkbenchData => {
     todos: [
       { id: uid(), date: today, text: "复盘一个自动化流程", done: true, order: 0, updatedAt: now },
       { id: uid(), date: today, text: "学习 20 分钟 Python", done: false, order: 1, updatedAt: now },
-      { id: uid(), date: dayKey(tomorrow), text: "更新求职简历", done: false, order: 0, updatedAt: now },
     ],
     memos: [
       { id: uid(), text: "周末去逛一家安静的书店", order: 0, createdAt: now - 2000, updatedAt: now - 2000 },
@@ -344,12 +343,18 @@ const nav: { id: View; label: string; icon: string }[] = [
 ];
 
 const greetings = [
-  "你处理复杂流程的样子，真的在发光。",
-  "你正在走向 RPA + AI 的赛道，眼光超棒。",
-  "你值得更高的薪资，也在为更好的未来踏实努力。",
+  "认真完成一件小事，也是在稳稳地向前走。",
+  "今天不必追赶谁，按照自己的节奏就很好。",
+  "你值得更好的生活，也在为喜欢的未来踏实努力。",
   "把日子过成喜欢的样子，本身就是一种了不起。",
   "小熊今天也很喜欢你认真生活的样子。",
   "杭州的风吹过梧桐，而你比夏天更明亮。",
+  "给今天留一点期待，也给自己留一点温柔。",
+  "慢慢积累的每一天，都会在未来悄悄发光。",
+  "先照顾好此刻的自己，再从容地走向下一站。",
+  "愿你今天有清晰的方向，也有放松的片刻。",
+  "不慌不忙地生活，也是一种很了不起的能力。",
+  "把注意力放回自己，今天会有新的小收获。",
 ];
 
 function useWorkbench() {
@@ -369,6 +374,7 @@ function useWorkbench() {
         if(shouldCleanSalary)localStorage.setItem(SALARY_CLEANUP_KEY,"done");
         setData({
           ...parsed,
+          todos: (Array.isArray(parsed.todos) ? parsed.todos : []).filter((todo:Todo)=>todo.text!=="更新求职简历"),
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
           learningTracks: Array.isArray(parsed.learningTracks) ? parsed.learningTracks : defaults.learningTracks,
           checkins: Array.isArray(parsed.checkins) ? parsed.checkins : defaults.checkins,
@@ -421,6 +427,7 @@ export default function Home() {
   const [view, setView] = useState<View>("home");
   const [growthStartTab,setGrowthStartTab]=useState<"path"|"learn"|"goals">("path");
   const [healthStartTab,setHealthStartTab]=useState<"cycle"|"fitness"|"food"|"care">("cycle");
+  const [financeStartTab,setFinanceStartTab]=useState<"ledger"|"shopping"|"advice">("ledger");
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [eventModal, setEventModal] = useState<EventItem | "new" | null>(null);
   const [memoModal, setMemoModal] = useState(false);
@@ -447,7 +454,12 @@ export default function Home() {
 
   const patch = (fn: (draft: WorkbenchData) => WorkbenchData) => setData((old) => old ? fn(old) : old);
   const go = (next: View, date?: string) => { if (date) setSelectedDate(date); setView(next); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const goSection=(next:"growth"|"health",tab:"learn"|"fitness"|"path")=>{if(next==="growth")setGrowthStartTab(tab==="learn"?"learn":"path");else setHealthStartTab("fitness");go(next)};
+  const goSection=(next:"growth"|"health"|"finance",tab:"learn"|"fitness"|"path"|"care"|"shopping")=>{
+    if(next==="growth")setGrowthStartTab(tab==="learn"?"learn":"path");
+    if(next==="health")setHealthStartTab(tab==="care"?"care":"fitness");
+    if(next==="finance")setFinanceStartTab("shopping");
+    go(next);
+  };
   const category = (id: string) => data.categories.find((c) => c.id === id) || data.categories[0];
 
   const toggleTodo = (id: string) => patch((d) => ({ ...d, todos: d.todos.map((t) => t.id === id ? { ...t, done: !t.done, updatedAt: Date.now() } : t) }));
@@ -577,7 +589,7 @@ export default function Home() {
         {view === "calendar" && <Calendar data={data} dates={dates} selectedDate={selectedDate} setSelectedDate={setSelectedDate} category={category} toggleTodo={toggleTodo} move={move} onAdd={() => setEventModal("new")} onEdit={setEventModal} onDelete={setDeleteTarget} patch={patch} />}
         {view === "growth" && <Growth data={data} patch={patch} initialTab={growthStartTab} />}
         {view === "health" && <Health data={data} patch={patch} initialTab={healthStartTab} />}
-        {view === "finance" && <Finance data={data} patch={patch} />}
+        {view === "finance" && <Finance data={data} patch={patch} initialTab={financeStartTab} />}
         {view === "jobs" && <Jobs data={data} patch={patch} />}
         {view === "travel" && <Travel data={data} patch={patch} />}
         {view === "memos" && <Memos data={data} go={go} toggleTodo={toggleTodo} move={move} onAdd={() => setMemoModal(true)} onDelete={setDeleteTarget} patch={patch} />}
@@ -596,7 +608,7 @@ export default function Home() {
   );
 }
 
-function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: WorkbenchData; go: (v: View, d?: string) => void; goSection:(v:"growth"|"health",tab:"learn"|"fitness"|"path")=>void; toggleTodo: (id: string) => void; patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {
+function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: WorkbenchData; go: (v: View, d?: string) => void; goSection:(v:"growth"|"health"|"finance",tab:"learn"|"fitness"|"path"|"care"|"shopping")=>void; toggleTodo: (id: string) => void; patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void }) {
   const today = todayKey();
   const d = new Date();
   const [todoText,setTodoText]=useState("");
@@ -605,6 +617,7 @@ function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: Workbench
   const [memoText,setMemoText]=useState("");
   const [editingMemo,setEditingMemo]=useState<string|null>(null);
   const [deleteMemo,setDeleteMemo]=useState<string|null>(null);
+  const [showPromoReminders,setShowPromoReminders]=useState(false);
   const [homeWeather,setHomeWeather]=useState<{temperature:number;apparent:number;code:number}|null>(null);
   const todays = data.todos.filter((t) => t.date === today);
   const todayStudy = data.checkins.filter((c) => c.date === today);
@@ -635,23 +648,26 @@ function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: Workbench
   const weatherLead=homeWeather?homeWeather.code>=50?`杭州今天有雨、体感约 ${Math.round(homeWeather.apparent)}°C，记得带伞；`:`杭州今天体感约 ${Math.round(homeWeather.apparent)}°C，适合适度活动；`:"今天按自己的体感安排节奏；";
   const phaseTip=phase==="月经期"?"以保暖、补水和轻柔活动为主。":phase==="卵泡期"?"能量通常在回升，可以循序增加活动量。":phase==="排卵期"?"状态活跃时也要充分热身、注意关节稳定。":phase==="黄体期"?"给睡眠和稳定饮食多一点优先级。":"规律吃饭、适量活动，也记得留一点休息时间。";
   const healthTip=`${weatherLead}${phaseTip}`;
+  const hour=d.getHours();
+  const timeGreeting=hour<11?"早上好":hour<14?"中午好":hour<18?"下午好":"晚上好";
   const addTodo=(e:FormEvent)=>{e.preventDefault();if(!todoText.trim())return;patch(x=>({...x,todos:[...x.todos,{id:uid(),date:today,text:todoText.trim(),done:false,order:todays.length,updatedAt:Date.now()}]}));setTodoText("")};
   const addMemo=(e:FormEvent)=>{e.preventDefault();if(!memoText.trim())return;patch(x=>({...x,memos:x.memos.map(m=>({...m,order:m.order+1})).concat({id:uid(),text:memoText.trim(),order:0,createdAt:Date.now(),updatedAt:Date.now()})}));setMemoText("")};
   return <div className="page dashboard">
-    <header className="topbar"><div><p>{d.getFullYear()}年{d.getMonth()+1}月{d.getDate()}日 · {weekday(today)}</p><h1>早上好，今天也慢慢来 <span>♡</span></h1></div><button className="avatar" aria-label="个人设置"><img src="/bears/bear-grid.jpg" alt="" /></button></header>
+    <header className="topbar"><div><p>{d.getFullYear()}年{d.getMonth()+1}月{d.getDate()}日 · {weekday(today)}</p><h1>{timeGreeting}，今天也慢慢来 <span>♡</span></h1></div><button className="avatar" aria-label="个人设置"><img src="/bears/bear-grid.jpg" alt="" /></button></header>
     <section className="hero"><div className="hero-copy"><span className="eyebrow">TODAY&apos;S LITTLE NOTE</span><blockquote>“{greeting}”</blockquote><p>— 来自今天的小熊</p></div><img src="/bears/app-bear.jpg" alt="戴着蓝色蝴蝶结的水彩小熊" /></section>
     <div className="section-title"><div><span>今日概览</span><h2>把重要的事，轻轻接住</h2></div><button className="text-btn" onClick={() => go("calendar", today)}>查看今日日程 →</button></div>
+    {(reminders.length>0||promoReminders.length>0)&&<section className="dashboard-reminder"><div className="home-card-heading"><span className="eyebrow">NEXT THREE DAYS</span><h2>未来三天提醒</h2></div><div>{promoReminders.length>0&&<button onClick={()=>setShowPromoReminders(true)}><b>％ 商家优惠活动</b><small>未来三天共 {promoReminders.length} 项，点击展开</small></button>}{reminders.map(x=><button key={x.item.id} onClick={()=>{go("memos");setTimeout(()=>document.getElementById("special-dates")?.scrollIntoView({behavior:"smooth"}),120)}}><b>{x.item.kind==="生日"?"🎂":"✦"} {x.item.title}</b><small>{x.date===today?"今天":`${dateDiff(today,x.date)} 天后`}</small></button>)}</div></section>}
     <section className="dashboard-top-grid">
-      <button className="overview-card pink next-event-card" onClick={() => go("calendar", today)}><div className="card-title"><span>下一项日程</span><i>◷</i></div>{nextEvent?<><strong>{nextEvent.start}</strong><h3>{nextEvent.title}</h3><p>{nextEvent.start}—{nextEvent.end} · 点击查看今天的完整安排</p></>:<><strong>—</strong><h3>今天没有日程</h3><p>留一点空白，也是一种认真生活。</p></>}</button>
-      <section className="overview-card cream home-memos"><div className="card-title"><span>快速备忘</span><button onClick={()=>go("memos")}>查看全部 →</button></div><form onSubmit={addMemo}><input value={memoText} onChange={e=>setMemoText(e.target.value)} placeholder="记下一个临时想法…"/><button>＋</button></form>{latest.length?<div>{latest.map(m=><article key={m.id}>{editingMemo===m.id?<input autoFocus value={m.text} onChange={e=>patch(x=>({...x,memos:x.memos.map(y=>y.id===m.id?{...y,text:e.target.value,updatedAt:Date.now()}:y)}))} onBlur={()=>setEditingMemo(null)}/>:<button onClick={()=>setEditingMemo(m.id)}>{m.text}</button>}<button onClick={()=>setDeleteMemo(m.id)}>×</button></article>)}</div>:<p>近三天还没有备忘</p>}</section>
+      <button className="overview-card pink next-event-card" onClick={() => go("calendar", today)}><div className="home-card-heading"><div><span className="eyebrow">NEXT UP</span><h2>下一项日程</h2></div><i>◷</i></div>{nextEvent?<><strong>{nextEvent.start}</strong><h3>{nextEvent.title}</h3><p>{nextEvent.start}—{nextEvent.end} · 点击查看今天的完整安排</p></>:<><strong>—</strong><h3>今天没有日程</h3><p>留一点空白，也是一种认真生活。</p></>}</button>
+      <section className="overview-card cream home-memos"><div className="home-card-heading"><div><span className="eyebrow">QUICK NOTES</span><h2>快速备忘</h2></div><button onClick={()=>go("memos")}>查看全部 →</button></div><form onSubmit={addMemo}><input value={memoText} onChange={e=>setMemoText(e.target.value)} placeholder="记下一个临时想法…"/><button>＋</button></form>{latest.length?<div>{latest.map(m=><article key={m.id}>{editingMemo===m.id?<input autoFocus value={m.text} onChange={e=>patch(x=>({...x,memos:x.memos.map(y=>y.id===m.id?{...y,text:e.target.value,updatedAt:Date.now()}:y)}))} onBlur={()=>setEditingMemo(null)}/>:<button onClick={()=>setEditingMemo(m.id)}>{m.text}</button>}<button onClick={()=>setDeleteMemo(m.id)}>×</button></article>)}</div>:<p>近三天还没有备忘</p>}</section>
     </section>
-    <section className="today-panel dashboard-primary-todos"><div className="panel-head"><div><span className="eyebrow">TODAY&apos;S TO-DO</span><h2>今日待办</h2></div><span className="todo-count">{todays.filter(x=>x.done).length} / {todays.length} 完成</span></div><form className="dashboard-add-todo" onSubmit={addTodo}><input value={todoText} onChange={e=>setTodoText(e.target.value)} placeholder="添加一个临时待办…"/><button>＋ 添加</button></form>{todays.length?<div className="dashboard-todos">{todays.sort((a,b)=>a.order-b.order).map(t=><div className="dashboard-todo-row" key={t.id}><label aria-label={`切换${t.text}完成状态`}><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)}/><i></i></label><input className={t.done?"strike":""} value={t.text} onFocus={()=>setEditingTodo(t.id)} onChange={e=>patch(x=>({...x,todos:x.todos.map(y=>y.id===t.id?{...y,text:e.target.value,updatedAt:Date.now()}:y)}))} onBlur={()=>setEditingTodo(null)} aria-label="修改待办内容"/><button className={editingTodo===t.id?"editing":""} onClick={()=>setDeleteTodo(t.id)} aria-label="删除待办">×</button></div>)}</div>:<Empty text="今天还没有待办，先写下一件最想完成的小事吧。"/>}</section>
-    <section className="overview-card lilac dashboard-checkin"><div className="card-title"><span>今日打卡</span><i>✦</i></div><div className="checkin-row">{checkinMetrics.map(x=>{const progress=x.total?x.done/x.total:0;const state=progress===0?"":progress>=1?"done":"partial";return <button key={x.label} className={state} onClick={()=>goSection(x.target,x.tab)}><i style={{"--check-progress":`${progress*360}deg`} as React.CSSProperties}>{progress>=1?"✓":progress>0?<b>{Math.round(progress*100)}</b>:""}</i><span><b>{x.label}</b><small>{x.detail}</small></span></button>})}</div></section>
-    {(reminders.length>0||promoReminders.length>0)&&<button className="dashboard-reminder" onClick={()=>{go("memos");setTimeout(()=>document.getElementById("special-dates")?.scrollIntoView({behavior:"smooth"}),120)}}><span>♡ 未来三天提醒</span><div>{promoReminders.length>0&&<b>％ 商家优惠活动<small>未来三天共 {promoReminders.length} 项，点击展开</small></b>}{reminders.map(x=><b key={x.item.id}>{x.item.kind==="生日"?"🎂":"✦"} {x.item.title}<small>{x.date===today?"今天":`${dateDiff(today,x.date)} 天后`}</small></b>)}</div><i>去备忘查看 →</i></button>}
+    <section className="today-panel dashboard-primary-todos"><div className="panel-head"><div><span className="eyebrow">TODAY&apos;S TO-DO</span><h2>今日待办</h2></div><div className="panel-actions"><span className="todo-count">{todays.filter(x=>x.done).length} / {todays.length} 完成</span><button onClick={()=>go("calendar",today)}>查看全部 →</button></div></div><form className="dashboard-add-todo" onSubmit={addTodo}><input value={todoText} onChange={e=>setTodoText(e.target.value)} placeholder="添加一个临时待办…"/><button>＋ 添加</button></form>{todays.length?<div className="dashboard-todos">{todays.sort((a,b)=>a.order-b.order).map(t=><div className="dashboard-todo-row" key={t.id}><label aria-label={`切换${t.text}完成状态`}><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)}/><i></i></label><input className={t.done?"strike":""} value={t.text} onFocus={()=>setEditingTodo(t.id)} onChange={e=>patch(x=>({...x,todos:x.todos.map(y=>y.id===t.id?{...y,text:e.target.value,updatedAt:Date.now()}:y)}))} onBlur={()=>setEditingTodo(null)} aria-label="修改待办内容"/><button className={editingTodo===t.id?"editing":""} onClick={()=>setDeleteTodo(t.id)} aria-label="删除待办">×</button></div>)}</div>:<Empty text="今天还没有待办，先写下一件最想完成的小事吧。"/>}</section>
+    <section className="overview-card lilac dashboard-checkin"><div className="home-card-heading"><div><span className="eyebrow">TODAY&apos;S CHECK-IN</span><h2>今日打卡</h2></div><i>✦</i></div><div className="checkin-row">{checkinMetrics.map(x=>{const progress=x.total?x.done/x.total:0;const state=progress===0?"":progress>=1?"done":"partial";return <button key={x.label} className={state} onClick={()=>goSection(x.target,x.tab)}><i style={{"--check-progress":`${progress*360}deg`} as React.CSSProperties}>{progress>=1?"✓":progress>0?<b>{Math.round(progress*100)}</b>:""}</i><span><b>{x.label}</b><small>{x.detail}</small></span></button>})}</div></section>
     <section className="dashboard-insights">
-      <button className="month-status" onClick={()=>go("finance")}><div className="insight-head"><div><span className="eyebrow">THIS MONTH</span><h2>本月状态</h2></div></div><div className="month-metrics"><article><i className="saving-ring" style={{"--saving-progress":`${savingProgress*3.6}deg`} as React.CSSProperties}><b>{savingProgress}%</b></i><span>储蓄进度</span></article><article><b>{workoutCount}<small> 次</small></b><span>运动完成</span></article><article><b>{learningDays}<small> 天</small></b><span>学习记录</span></article></div></button>
-      <button className="health-glance" onClick={()=>go("health")}><div className="insight-head"><div><span className="eyebrow">TODAY&apos;S WELLNESS</span><h2>今日健康提示</h2></div><i>{homeWeather?.code&&homeWeather.code>=50?"☂":"♡"}</i></div><p>{healthTip}</p><span>查看完整健康建议 →</span></button>
+      <section className="month-status"><div className="insight-head"><div><span className="eyebrow">THIS MONTH</span><h2>本月状态</h2></div></div><div className="month-metrics"><button onClick={()=>goSection("finance","shopping")}><i className="saving-ring" style={{"--saving-progress":`${savingProgress*3.6}deg`} as React.CSSProperties}><b>{savingProgress}%</b></i><span>储蓄进度</span></button><button onClick={()=>goSection("health","fitness")}><b>{workoutCount}<small> 次</small></b><span>运动完成</span></button><button onClick={()=>goSection("growth","learn")}><b>{learningDays}<small> 天</small></b><span>学习记录</span></button></div></section>
+      <button className="health-glance" onClick={()=>goSection("health","care")}><div className="insight-head"><div><span className="eyebrow">TODAY&apos;S WELLNESS</span><h2>今日健康提示</h2></div><i>{homeWeather?.code&&homeWeather.code>=50?"☂":"♡"}</i></div><p>{healthTip}</p><span>查看杭州保养建议 →</span></button>
     </section>
+    {showPromoReminders&&<Modal title="未来三天 · 商家优惠活动" onClose={()=>setShowPromoReminders(false)}><div className="home-promo-list">{promoReminders.map(x=><section key={x.item.id}><time>{x.date===today?"今天":`${dateDiff(today,x.date)} 天后`} · {displayDate(x.date)}</time><p><i>％</i>{x.item.title}</p></section>)}</div></Modal>}
     {deleteTodo&&<Modal title="删除这个临时待办吗？" onClose={()=>setDeleteTodo(null)}><p className="modal-copy">它也会同时从日历和备忘中的 To-do 汇总里移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTodo(null)}>先保留</button><button className="danger" onClick={()=>{patch(x=>({...x,todos:x.todos.filter(y=>y.id!==deleteTodo)}));setDeleteTodo(null)}}>确认删除</button></div></Modal>}
     {deleteMemo&&<Modal title="删除这条快速备忘吗？" onClose={()=>setDeleteMemo(null)}><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteMemo(null)}>先保留</button><button className="danger" onClick={()=>{patch(x=>({...x,memos:x.memos.filter(y=>y.id!==deleteMemo)}));setDeleteMemo(null)}}>确认删除</button></div></Modal>}
   </div>;
@@ -824,9 +840,9 @@ function TrendCanvas({ points }:{ points:{label:string;income:number;expense:num
   return <canvas className="trend-canvas" ref={ref} aria-label="收支趋势图"/>;
 }
 
-function Finance({ data, patch }:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void}) {
+function Finance({ data, patch, initialTab="ledger" }:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void;initialTab?:"ledger"|"shopping"|"advice"}) {
   const [range,setRange]=useState<"day"|"week"|"month"|"year">("month");
-  const [tab,setTab]=useState<"ledger"|"shopping"|"advice">("ledger");
+  const [tab,setTab]=useState<"ledger"|"shopping"|"advice">(initialTab);
   const [quick,setQuick]=useState("");
   const [editor,setEditor]=useState<FinanceEntry|null|"new">(null);
   const [categoryForm,setCategoryForm]=useState({name:"",type:"expense" as "income"|"expense",color:"#D48793"});

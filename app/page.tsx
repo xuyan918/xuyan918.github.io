@@ -29,7 +29,8 @@ type Destination = { id:string; place:string; country:string; visited:boolean; u
 type ItineraryItem = { id:string; day:number; time:string; content:string };
 type PackingItem = { id:string; category:string; name:string; checked:boolean };
 type TravelPlan = { id:string; name:string; startDate:string; endDate:string; itinerary:ItineraryItem[]; packing:PackingItem[]; updatedAt:number };
-type SpecialDay = { id:string; title:string; date:string; kind:"节日"|"折扣"|"演唱会"|"生日"; calendar:"公历"|"农历"; lunarDate?:string; lunarMonth?:number; lunarDay?:number; reminderDays:number; recurrence?:"weekly"|"monthly"|"yearly"; weekday?:number; monthDay?:number; month?:number; updatedAt:number };
+type SpecialCategory = { id:string; name:string; icon:string; order:number; updatedAt:number };
+type SpecialDay = { id:string; title:string; date:string; kind:string; calendar:"公历"|"农历"; lunarDate?:string; lunarMonth?:number; lunarDay?:number; reminderDays:number; recurrence?:"weekly"|"monthly"|"yearly"; weekday?:number; monthDay?:number; month?:number; updatedAt:number };
 type WorkbenchData = {
   version: 1;
   exportedAt?: number;
@@ -56,6 +57,7 @@ type WorkbenchData = {
   destinations: Destination[];
   travelPlans: TravelPlan[];
   packingTemplate: PackingItem[];
+  specialCategories: SpecialCategory[];
   specialDays: SpecialDay[];
 };
 
@@ -63,6 +65,7 @@ const STORAGE_KEY = "bear-workbench-v1";
 const SALARY_CLEANUP_KEY = "bear-workbench-salary-cleaned-20260729";
 const GROWTH_CLEANUP_KEY = "bear-workbench-growth-cleaned-20260731";
 const JOB_FILTER_CLEANUP_KEY = "bear-workbench-job-filters-cleaned-20260731";
+const SPECIAL_DAYS_CLEANUP_KEY = "bear-workbench-special-days-categories-20260731";
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const todayKey = () => dayKey(new Date());
@@ -181,9 +184,15 @@ const PROMO_SPECIAL_DAYS:SpecialDay[]=[
 const lunarParts=(date:string)=>{const parts=new Intl.DateTimeFormat("zh-CN-u-ca-chinese",{month:"numeric",day:"numeric"}).formatToParts(new Date(`${date}T12:00:00`));return {month:Number(parts.find(x=>x.type==="month")?.value),day:Number(parts.find(x=>x.type==="day")?.value)}};
 const occursOn=(item:SpecialDay,date:string)=>{const d=new Date(`${date}T12:00:00`);if(item.calendar==="农历"&&item.recurrence==="yearly"){const lunar=lunarParts(date);return lunar.month===item.lunarMonth&&lunar.day===item.lunarDay}if(item.recurrence==="weekly")return d.getDay()===item.weekday;if(item.recurrence==="monthly")return d.getDate()===item.monthDay;if(item.recurrence==="yearly")return d.getMonth()+1===item.month&&d.getDate()===item.monthDay;return item.date===date};
 const nextSpecialDate=(item:SpecialDay,from=todayKey())=>{if(!item.recurrence)return item.date;for(let i=0;i<370;i++){const date=addDays(from,i);if(occursOn(item,date))return date}return item.date};
-const specialDaysForDate=(items:SpecialDay[],date:string)=>items.filter(item=>occursOn(item,date));
+const specialRank=(item:SpecialDay)=>item.kind==="生日"?0:(item.kind==="纪念日"?1:2);
+const specialDaysForDate=(items:SpecialDay[],date:string)=>items.filter(item=>occursOn(item,date)).sort((a,b)=>specialRank(a)-specialRank(b)||a.updatedAt-b.updatedAt);
 const specialRuleLabel=(item:SpecialDay)=>item.calendar==="农历"&&item.recurrence==="yearly"?`农历每年 ${item.lunarDate}`:item.recurrence==="weekly"?`每周${["日","一","二","三","四","五","六"][item.weekday||0]}`:item.recurrence==="monthly"?`每月 ${item.monthDay} 日`:item.recurrence==="yearly"?`每年 ${item.month} 月 ${item.monthDay} 日`:"单次提醒";
-const withKnownSpecials=(items:SpecialDay[])=>[...items.filter(x=>!x.id.startsWith("promo-")&&!x.id.startsWith("birthday-")),...PROMO_SPECIAL_DAYS];
+function defaultSpecialCategories(now=Date.now()):SpecialCategory[]{
+  return [
+    {id:"birthday",name:"生日",icon:"🎂",order:0,updatedAt:now},{id:"anniversary",name:"纪念日",icon:"♡",order:1,updatedAt:now},{id:"festival",name:"节日",icon:"✦",order:2,updatedAt:now},{id:"concert",name:"演唱会",icon:"♫",order:3,updatedAt:now},{id:"merchant",name:"商家优惠活动",icon:"％",order:4,updatedAt:now},
+  ];
+}
+const withKnownSpecials=(items:SpecialDay[])=>items.filter(x=>!x.id.startsWith("promo-")&&x.title!=="会员超市折扣日");
 const cycleInfo = (data:WorkbenchData,date=todayKey()) => {
   const sorted=[...data.periods].sort((a,b)=>b.start.localeCompare(a.start));
   const latest=sorted[0];
@@ -319,7 +328,8 @@ const phaseSixDefaults = (now=Date.now()) => {
       {id:uid(),day:2,time:"09:30",content:"城山日出峰与海女村"},
       {id:uid(),day:3,time:"11:00",content:"咖啡馆、橘子园与小店巡游"},
     ],packing:makePacking(),updatedAt:now}] as TravelPlan[],
-    specialDays:withKnownSpecials([{id:"special-sale",title:"会员超市折扣日",date:addDays(todayKey(),3),kind:"折扣",calendar:"公历",reminderDays:3,updatedAt:now}]) as SpecialDay[],
+    specialCategories:defaultSpecialCategories(now),
+    specialDays:[] as SpecialDay[],
   };
 };
 
@@ -393,10 +403,12 @@ function useWorkbench() {
         const shouldCleanSalary = localStorage.getItem(SALARY_CLEANUP_KEY)!=="done";
         const shouldCleanGrowth = localStorage.getItem(GROWTH_CLEANUP_KEY)!=="done";
         const shouldCleanJobFilters = localStorage.getItem(JOB_FILTER_CLEANUP_KEY)!=="done";
+        const shouldCleanSpecialDays = localStorage.getItem(SPECIAL_DAYS_CLEANUP_KEY)!=="done";
         const cleanFinance = withoutStoredSalary(parsed,financeDefaults,shouldCleanSalary);
         if(shouldCleanSalary)localStorage.setItem(SALARY_CLEANUP_KEY,"done");
         if(shouldCleanGrowth)localStorage.setItem(GROWTH_CLEANUP_KEY,"done");
         if(shouldCleanJobFilters)localStorage.setItem(JOB_FILTER_CLEANUP_KEY,"done");
+        if(shouldCleanSpecialDays)localStorage.setItem(SPECIAL_DAYS_CLEANUP_KEY,"done");
         const trackOrder=["law","finance-study","photoshop","ielts","topik","cpa"];
         const trackDefaults=new Map(defaults.learningTracks.map(track=>[track.id,track]));
         const normalizedTracks=(Array.isArray(parsed.learningTracks)?parsed.learningTracks:defaults.learningTracks)
@@ -429,6 +441,7 @@ function useWorkbench() {
           destinations: Array.isArray(parsed.destinations) ? parsed.destinations : travelDefaults.destinations,
           travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
           packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
+          specialCategories: Array.isArray(parsed.specialCategories) ? parsed.specialCategories : travelDefaults.specialCategories,
           specialDays: withKnownSpecials(Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays),
         });
       } else setData(seedData());
@@ -560,6 +573,7 @@ export default function Home() {
           destinations: Array.isArray(parsed.destinations) ? parsed.destinations : travelDefaults.destinations,
           travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
           packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
+          specialCategories: Array.isArray(parsed.specialCategories) ? parsed.specialCategories : travelDefaults.specialCategories,
           specialDays: withKnownSpecials(Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays),
         });
         setImportMode("merge");
@@ -605,6 +619,7 @@ export default function Home() {
         destinations: merge(current.destinations, pendingImport.destinations),
         travelPlans: merge(current.travelPlans, pendingImport.travelPlans),
         packingTemplate: pendingImport.packingTemplate.length ? pendingImport.packingTemplate : current.packingTemplate,
+        specialCategories: merge(current.specialCategories, pendingImport.specialCategories),
         specialDays: merge(current.specialDays, pendingImport.specialDays),
       };
     });
@@ -665,8 +680,8 @@ function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: Workbench
   const nextEvent=todaysEvents.find(e=>e.start>=nowTime)||todaysEvents[0];
   const latest = [...data.memos].filter(m=>m.createdAt>=Date.now()-3*86400000).sort((a, b) => b.createdAt - a.createdAt);
   const allReminders=data.specialDays.map(item=>({item,date:nextSpecialDate(item,today)})).filter(x=>{const days=dateDiff(today,x.date);return days>=0&&days<=Math.max(3,x.item.reminderDays)}).sort((a,b)=>a.date.localeCompare(b.date));
-  const promoReminders=allReminders.filter(x=>x.item.id.startsWith("promo-"));
-  const reminders=allReminders.filter(x=>!x.item.id.startsWith("promo-")).slice(0,3);
+  const promoReminders=allReminders.filter(x=>x.item.kind==="商家优惠活动");
+  const reminders=allReminders.filter(x=>x.item.kind!=="商家优惠活动").slice(0,3);
   const greeting = greetings[Math.floor((d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate()) % greetings.length)];
   const checkinMetrics=[
     {label:"学习",done:new Set(todayStudy.map(x=>x.trackId)).size,total:data.learningTracks.length,target:"growth" as const,tab:"learn" as const,detail:`${todayStudy.length} / ${data.learningTracks.length} 项`},
@@ -737,12 +752,12 @@ function Calendar({ data, dates, selectedDate, setSelectedDate, category, toggle
     <header className="page-head"><div><span className="eyebrow">MY WEEK</span><h1>本周日程与待办</h1></div><button onClick={onAdd}>＋ 新建日程</button></header>
     <div className="quick-parse"><span>✦</span><input value={quickText} onChange={e=>setQuickText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&parseQuick()} placeholder="试试说：后天下午 3 点半普拉提" /><button onClick={parseQuick}>帮我记下</button></div>
     <div className="week-nav"><button onClick={()=>setSelectedDate(addDays(weekDates[0],-7))}>← 上一周</button><b>{displayDate(weekDates[0])} — {displayDate(weekDates[6])}</b><button onClick={()=>setSelectedDate(addDays(weekDates[0],7))}>下一周 →</button></div>
-    <div className="week-calendar">{weekDates.map(date=>{const dayEvents=data.events.filter((e:EventItem)=>e.date===date).sort((a:EventItem,b:EventItem)=>a.start.localeCompare(b.start));const dayTodos=data.todos.filter((t:Todo)=>t.date===date).sort((a:Todo,b:Todo)=>a.order-b.order);const daySpecials=specialDaysForDate(data.specialDays,date);const dayPromos=daySpecials.filter((x:SpecialDay)=>x.id.startsWith("promo-"));const otherSpecials=daySpecials.filter((x:SpecialDay)=>!x.id.startsWith("promo-"));return <section key={date} className={`week-day ${date===todayKey()?"today":""}`}><header><div className="week-date"><small>{weekday(date)}</small><b>{new Date(`${date}T12:00:00`).getDate()}</b><span>{new Date(`${date}T12:00:00`).getMonth()+1}月</span></div><div className="week-day-title"><h2>{date===todayKey()?"今天":displayDate(date)}</h2><div className="calendar-checkins">{periodMark(date)&&<b>✿ {periodMark(date)==="actual"?"经期":"预测"}</b>}{data.healthLogs.some((l:HealthLog)=>l.date===date&&l.trained)&&<b>✓ 训练</b>}{dayPromos.length>0&&<button onClick={()=>setPromoDate(date)}>％ 商家优惠活动 <small>{dayPromos.length} 项</small></button>}{otherSpecials.map((x:SpecialDay)=><b key={x.id}>{x.kind==="生日"?"🎂":"✦"} {x.title}</b>)}</div></div><button onClick={()=>{setSelectedDate(date);onAdd()}}>＋ 日程</button></header><div className="week-day-body"><div className="week-events"><h3>日程 <span>{dayEvents.length}</span></h3>{dayEvents.map((e:EventItem)=><article className="event-card" key={e.id} style={{"--event":category(e.categoryId).color} as React.CSSProperties}><time>{e.start}<small>{e.end}</small></time><i></i><div><span>{category(e.categoryId).name}</span><button onClick={()=>onEdit(e)}>{e.title}</button></div><button className="more" onClick={()=>onDelete({kind:"event",id:e.id})}>×</button></article>)}{!dayEvents.length&&<p className="week-empty">没有日程，时间可以自由安排。</p>}</div><div className="week-todos"><div className="todo-head"><h3>To-do</h3><span>{dayTodos.filter((t:Todo)=>t.done).length} / {dayTodos.length}</span></div>{dayTodos.map((t:Todo)=><div className="todo-row" key={t.id}><label><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)}/><i></i><input className={t.done?"strike":""} value={t.text} onChange={e=>patch((d:WorkbenchData)=>({...d,todos:d.todos.map(x=>x.id===t.id?{...x,text:e.target.value,updatedAt:Date.now()}:x)}))}/></label><div><button onClick={()=>move("todo",t.id,-1)}>↑</button><button onClick={()=>move("todo",t.id,1)}>↓</button><button onClick={()=>onDelete({kind:"todo",id:t.id})}>×</button></div></div>)}<form className="add-todo" onSubmit={e=>addTodo(e,date)}><input value={todoDrafts[date]||""} onChange={e=>setTodoDrafts(x=>({...x,[date]:e.target.value}))} placeholder="添加待办…"/><button>添加</button></form></div></div></section>})}</div>
+    <div className="week-calendar">{weekDates.map(date=>{const dayEvents=data.events.filter((e:EventItem)=>e.date===date).sort((a:EventItem,b:EventItem)=>a.start.localeCompare(b.start));const dayTodos=data.todos.filter((t:Todo)=>t.date===date).sort((a:Todo,b:Todo)=>a.order-b.order);const daySpecials=specialDaysForDate(data.specialDays,date);const dayPromos=daySpecials.filter((x:SpecialDay)=>x.id.startsWith("promo-"));const otherSpecials=daySpecials.filter((x:SpecialDay)=>!x.id.startsWith("promo-"));return <section key={date} className={`week-day ${date===todayKey()?"today":""}`}><header><div className="week-date"><small>{weekday(date)}</small><b>{new Date(`${date}T12:00:00`).getDate()}</b><span>{new Date(`${date}T12:00:00`).getMonth()+1}月</span></div><div className="week-day-title"><h2>{date===todayKey()?"今天":displayDate(date)}</h2><div className="calendar-checkins">{periodMark(date)&&<b>✿ {periodMark(date)==="actual"?"经期":"预测"}</b>}{data.healthLogs.some((l:HealthLog)=>l.date===date&&l.trained)&&<b>✓ 训练</b>}{dayPromos.length>0&&<button onClick={()=>setPromoDate(date)}>％ 商家优惠活动 <small>{dayPromos.length} 项</small></button>}{otherSpecials.map((x:SpecialDay)=><b key={x.id}>{x.kind==="生日"?"🎂":x.kind==="纪念日"?"♡":"✦"} {x.title}</b>)}</div></div><button onClick={()=>{setSelectedDate(date);onAdd()}}>＋ 日程</button></header><div className="week-day-body"><div className="week-events"><h3>日程 <span>{dayEvents.length}</span></h3>{dayEvents.map((e:EventItem)=><article className="event-card" key={e.id} style={{"--event":category(e.categoryId).color} as React.CSSProperties}><time>{e.start}<small>{e.end}</small></time><i></i><div><span>{category(e.categoryId).name}</span><button onClick={()=>onEdit(e)}>{e.title}</button></div><button className="more" onClick={()=>onDelete({kind:"event",id:e.id})}>×</button></article>)}{!dayEvents.length&&<p className="week-empty">没有日程，时间可以自由安排。</p>}</div><div className="week-todos"><div className="todo-head"><h3>To-do</h3><span>{dayTodos.filter((t:Todo)=>t.done).length} / {dayTodos.length}</span></div>{dayTodos.map((t:Todo)=><div className="todo-row" key={t.id}><label><input type="checkbox" checked={t.done} onChange={()=>toggleTodo(t.id)}/><i></i><input className={t.done?"strike":""} value={t.text} onChange={e=>patch((d:WorkbenchData)=>({...d,todos:d.todos.map(x=>x.id===t.id?{...x,text:e.target.value,updatedAt:Date.now()}:x)}))}/></label><div><button onClick={()=>move("todo",t.id,-1)}>↑</button><button onClick={()=>move("todo",t.id,1)}>↓</button><button onClick={()=>onDelete({kind:"todo",id:t.id})}>×</button></div></div>)}<form className="add-todo" onSubmit={e=>addTodo(e,date)}><input value={todoDrafts[date]||""} onChange={e=>setTodoDrafts(x=>({...x,[date]:e.target.value}))} placeholder="添加待办…"/><button>添加</button></form></div></div></section>})}</div>
     {promoDate&&<Modal title={`${displayDate(promoDate)} · 商家优惠活动`} onClose={()=>setPromoDate(null)}><div className="calendar-promo-list">{specialDaysForDate(data.specialDays,promoDate).filter((x:SpecialDay)=>x.id.startsWith("promo-")).map((x:SpecialDay)=><p key={x.id}><i>％</i><span>{x.title}</span></p>)}</div></Modal>}
   </div>;
 }
 
-function Memos({ data, go, toggleTodo, move, onAdd, onDelete, patch }: any) {
+function LegacyMemos({ data, go, toggleTodo, move, onAdd, onDelete, patch }: any) {
   const [editing, setEditing] = useState<string|null>(null); const [text,setText]=useState("");
   const [showSpecial,setShowSpecial]=useState(false);
   const [showPromos,setShowPromos]=useState(false);
@@ -759,6 +774,42 @@ function Memos({ data, go, toggleTodo, move, onAdd, onDelete, patch }: any) {
   {showSpecial&&<Modal title="添加特别日子" onClose={()=>setShowSpecial(false)}><form className="editor-form" onSubmit={addSpecial}><label>名称<input value={specialForm.title} onChange={e=>setSpecialForm({...specialForm,title:e.target.value})} placeholder="生日、演唱会或折扣日" required/></label><div className="two-col"><label>类型<select value={specialForm.kind} onChange={e=>setSpecialForm({...specialForm,kind:e.target.value as SpecialDay["kind"]})}><option>节日</option><option>折扣</option><option>演唱会</option><option>生日</option></select></label><label>历法<select value={specialForm.calendar} onChange={e=>setSpecialForm({...specialForm,calendar:e.target.value as SpecialDay["calendar"]})}><option>公历</option><option>农历</option></select></label></div>{specialForm.calendar==="农历"&&<label>农历日期说明<input value={specialForm.lunarDate} onChange={e=>setSpecialForm({...specialForm,lunarDate:e.target.value})} placeholder="例如：八月初五"/></label>}<div className="two-col"><label>{specialForm.calendar==="农历"?"下一次公历日期":"日期"}<input type="date" value={specialForm.date} onChange={e=>setSpecialForm({...specialForm,date:e.target.value})}/></label><label>提前提醒天数<input type="number" min="0" value={specialForm.reminderDays} onChange={e=>setSpecialForm({...specialForm,reminderDays:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowSpecial(false)}>取消</button><button>保存日子</button></div></form></Modal>}
   {deleteSpecial&&<Modal title="删除这个特别日子吗？" onClose={()=>setDeleteSpecial(null)}><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteSpecial(null)}>先保留</button><button className="danger" onClick={()=>{patch((d:WorkbenchData)=>({...d,specialDays:d.specialDays.filter(x=>x.id!==deleteSpecial)}));setDeleteSpecial(null)}}>确认删除</button></div></Modal>}
   <button className="bear-fab inner" onClick={onAdd}><img src="/bears/app-bear.jpg" alt="" /><span>记一下</span></button></div>;
+}
+
+function Memos({ data, move, onAdd, onDelete, patch }: any) {
+  const [editingMemo,setEditingMemo]=useState<string|null>(null);
+  const [memoText,setMemoText]=useState("");
+  const [selectedCategory,setSelectedCategory]=useState<SpecialCategory|null>(null);
+  const [showCategory,setShowCategory]=useState(false);
+  const [categoryName,setCategoryName]=useState("");
+  const [editingSpecial,setEditingSpecial]=useState<SpecialDay|null>(null);
+  const freshForm=()=>({title:"",date:todayKey(),rule:"fixed" as "fixed"|"weekly"|"monthly"|"yearly",weekday:"1",monthDay:"1",month:String(new Date().getMonth()+1),reminderDays:"3"});
+  const [specialForm,setSpecialForm]=useState(freshForm);
+  const saveMemo=(id:string)=>{if(memoText.trim())patch((d:WorkbenchData)=>({...d,memos:d.memos.map(m=>m.id===id?{...m,text:memoText.trim(),updatedAt:Date.now()}:m)}));setEditingMemo(null)};
+  const openCategory=(category:SpecialCategory)=>{setSelectedCategory(category);setEditingSpecial(null);setSpecialForm(freshForm())};
+  const startEdit=(item:SpecialDay)=>{setEditingSpecial(item);setSpecialForm({title:item.title,date:item.date,rule:item.recurrence||"fixed",weekday:String(item.weekday??1),monthDay:String(item.monthDay??1),month:String(item.month??1),reminderDays:String(item.reminderDays)})};
+  const saveSpecial=(e:FormEvent)=>{e.preventDefault();if(!selectedCategory||!specialForm.title.trim())return;const rule=specialForm.rule;const item:SpecialDay={id:editingSpecial?.id||(selectedCategory.id==="merchant"?`promo-${uid()}`:uid()),title:specialForm.title.trim(),kind:selectedCategory.name,calendar:"公历",date:specialForm.date,reminderDays:Number(specialForm.reminderDays)||0,updatedAt:editingSpecial?.updatedAt||Date.now(),recurrence:rule==="fixed"?undefined:rule,weekday:rule==="weekly"?Number(specialForm.weekday):undefined,monthDay:rule==="monthly"||rule==="yearly"?Number(specialForm.monthDay):undefined,month:rule==="yearly"?Number(specialForm.month):undefined};patch((d:WorkbenchData)=>({...d,specialDays:editingSpecial?d.specialDays.map(x=>x.id===editingSpecial.id?item:x):[...d.specialDays,item]}));setEditingSpecial(null);setSpecialForm(freshForm())};
+  const addCategory=(e:FormEvent)=>{e.preventDefault();if(!categoryName.trim())return;const category:SpecialCategory={id:uid(),name:categoryName.trim(),icon:"✦",order:data.specialCategories.length,updatedAt:Date.now()};patch((d:WorkbenchData)=>({...d,specialCategories:[...d.specialCategories,category]}));setCategoryName("");setShowCategory(false);openCategory(category)};
+  const categoryItems=(category:SpecialCategory)=>data.specialDays.filter((x:SpecialDay)=>category.id==="merchant"?x.id.startsWith("promo-"):x.kind===category.name&&!x.id.startsWith("promo-"));
+  return <div className="page memo-page">
+    <header className="page-head"><div><span className="eyebrow">LITTLE NOTES</span><h1>备忘</h1><p>所有历史灵感都收在这里。</p></div><button onClick={onAdd}>＋ 快速备忘</button></header>
+    <div className="memo-grid single"><section className="paper-panel"><div className="panel-head"><div><span className="eyebrow">QUICK NOTES</span><h2>快速备忘</h2><p>点击文字即可修改，也可以排序或删除</p></div><span>共 {data.memos.length} 条</span></div>
+      <div className="memo-list">{[...data.memos].sort((a,b)=>a.order-b.order).map((m:Memo)=><article key={m.id}>{editingMemo===m.id?<input autoFocus value={memoText} onChange={e=>setMemoText(e.target.value)} onBlur={()=>saveMemo(m.id)} onKeyDown={e=>e.key==="Enter"&&saveMemo(m.id)}/>:<button className="memo-text" onClick={()=>{setEditingMemo(m.id);setMemoText(m.text)}}>{m.text}</button>}<footer><time>{new Date(m.createdAt).toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</time><div><button onClick={()=>move("memo",m.id,-1)}>↑</button><button onClick={()=>move("memo",m.id,1)}>↓</button><button onClick={()=>onDelete({kind:"memo",id:m.id})}>删除</button></div></footer></article>)}{!data.memos.length&&<Empty text="灵感还没落下来，小熊在这里等你。" />}</div>
+    </section></div>
+    <section className="memo-specials" id="special-dates"><div className="travel-section-head"><div><span className="eyebrow">SPECIAL DAYS</span><h2>特别日子</h2></div><button onClick={()=>setShowCategory(true)}>＋ 新建分类</button></div>
+      <div className="special-grid compact-specials category-folders">{[...data.specialCategories].sort((a,b)=>a.order-b.order).map((category:SpecialCategory)=>{const items=categoryItems(category);return <button className={`promo-folder category-folder ${category.id}`} key={category.id} onClick={()=>openCategory(category)}><i>{category.icon}</i><div><span>每周 · 每月 · 每年 · 固定日期</span><h3>{category.name}</h3><p>{items.length} 个日子 · 点击管理</p></div><b>打开 →</b></button>})}</div>
+    </section>
+    {showCategory&&<Modal title="新建特别日子分类" onClose={()=>setShowCategory(false)}><form className="editor-form" onSubmit={addCategory}><label>分类名称<input autoFocus value={categoryName} onChange={e=>setCategoryName(e.target.value)} placeholder="例如：宠物、家人或重要约会" required/></label><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowCategory(false)}>取消</button><button>建立分类</button></div></form></Modal>}
+    {selectedCategory&&<Modal title={`${selectedCategory.icon} ${selectedCategory.name}`} onClose={()=>setSelectedCategory(null)}><div className="special-category-manager"><form className="editor-form compact-special-form" onSubmit={saveSpecial}><label>名称<input value={specialForm.title} onChange={e=>setSpecialForm({...specialForm,title:e.target.value})} placeholder={`添加${selectedCategory.name}`} required/></label><div className="two-col"><label>重复方式<select value={specialForm.rule} onChange={e=>setSpecialForm({...specialForm,rule:e.target.value as typeof specialForm.rule})}><option value="fixed">固定日期</option><option value="weekly">每周几</option><option value="monthly">每月几号</option><option value="yearly">每年几月几号</option></select></label><label>提前提醒<input type="number" min="0" value={specialForm.reminderDays} onChange={e=>setSpecialForm({...specialForm,reminderDays:e.target.value})}/></label></div>
+      {specialForm.rule==="fixed"&&<label>日期<input type="date" value={specialForm.date} onChange={e=>setSpecialForm({...specialForm,date:e.target.value})}/></label>}
+      {specialForm.rule==="weekly"&&<label>星期<select value={specialForm.weekday} onChange={e=>setSpecialForm({...specialForm,weekday:e.target.value})}>{["日","一","二","三","四","五","六"].map((x,i)=><option value={i} key={x}>星期{x}</option>)}</select></label>}
+      {specialForm.rule==="monthly"&&<label>每月几号<input type="number" min="1" max="31" value={specialForm.monthDay} onChange={e=>setSpecialForm({...specialForm,monthDay:e.target.value})}/></label>}
+      {specialForm.rule==="yearly"&&<div className="two-col"><label>月份<input type="number" min="1" max="12" value={specialForm.month} onChange={e=>setSpecialForm({...specialForm,month:e.target.value})}/></label><label>日期<input type="number" min="1" max="31" value={specialForm.monthDay} onChange={e=>setSpecialForm({...specialForm,monthDay:e.target.value})}/></label></div>}
+      <div className="modal-actions">{editingSpecial&&<button type="button" className="secondary" onClick={()=>{setEditingSpecial(null);setSpecialForm(freshForm())}}>取消修改</button>}<button>{editingSpecial?"保存修改":"添加日子"}</button></div></form>
+      <div className="special-manager-list">{categoryItems(selectedCategory).sort((a:SpecialDay,b:SpecialDay)=>a.updatedAt-b.updatedAt).map((item:SpecialDay)=><article key={item.id}><i>{selectedCategory.icon}</i><div><b>{item.title}</b><span>{specialRuleLabel(item)} · 提前 {item.reminderDays} 天</span></div><button onClick={()=>startEdit(item)}>修改</button><button className="danger-text" onClick={()=>patch((d:WorkbenchData)=>({...d,specialDays:d.specialDays.filter(x=>x.id!==item.id)}))}>删除</button></article>)}{!categoryItems(selectedCategory).length&&<Empty text="这里还没有特别日子。" />}</div>
+      {!["birthday","anniversary","festival","concert","merchant"].includes(selectedCategory.id)&&<button className="delete-category" onClick={()=>{patch((d:WorkbenchData)=>({...d,specialCategories:d.specialCategories.filter(x=>x.id!==selectedCategory.id),specialDays:d.specialDays.filter(x=>x.kind!==selectedCategory.name)}));setSelectedCategory(null)}}>删除这个分类</button>}</div></Modal>}
+    <button className="bear-fab inner" onClick={onAdd}><img src="/bears/app-bear.jpg" alt="" /><span>记一下</span></button>
+  </div>
 }
 
 function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void; initialTab?:"cycle"|"fitness"|"food"|"care" }) {

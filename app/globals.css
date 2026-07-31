@@ -88,3 +88,24 @@
 @media(max-width:700px){.media-category-manager{grid-template-columns:1fr}.home-cats .home-cat-card{grid-template-columns:50px 1fr}.home-cats .cat-home-metrics{grid-column:2}.home-cats .home-cat-card>i{grid-column:2}.home-cats .home-cat-card h2,.home-cats .home-cat-card p{white-space:normal}}
 .outfit-inspiration{display:grid;grid-template-columns:minmax(280px,1.2fr) 1fr;gap:20px;align-items:center;margin:14px 0;padding:16px;border:1px solid #eadeda;border-radius:22px;background:linear-gradient(135deg,#fff9f6,#fffdf9);box-shadow:var(--shadow)}.outfit-inspiration>div{min-height:300px;border-radius:17px;background-image:url("/outfit-inspiration-v2.png");background-repeat:no-repeat;background-size:400% 300%;background-position:0 0}.outfit-inspiration.outfit-1>div{background-position:33.333% 0}.outfit-inspiration.outfit-2>div{background-position:66.667% 0}.outfit-inspiration.outfit-3>div{background-position:100% 0}.outfit-inspiration.outfit-4>div{background-position:0 50%}.outfit-inspiration.outfit-5>div{background-position:33.333% 50%}.outfit-inspiration.outfit-6>div{background-position:66.667% 50%}.outfit-inspiration.outfit-7>div{background-position:100% 50%}.outfit-inspiration.outfit-8>div{background-position:0 100%}.outfit-inspiration.outfit-9>div{background-position:33.333% 100%}.outfit-inspiration.outfit-10>div{background-position:66.667% 100%}.outfit-inspiration.outfit-11>div{background-position:100% 100%}.outfit-inspiration figcaption{padding:10px}.outfit-inspiration h3{font:22px Georgia,"Songti SC",serif;margin:8px 0}.outfit-inspiration p{font-size:11px;line-height:1.8;color:#806b67}.home-cats .home-cat-card>div:nth-child(2){min-width:0}
 @media(max-width:650px){.outfit-inspiration{grid-template-columns:1fr}.outfit-inspiration>div{min-height:260px}}
+
+/* Compact desktop navigation and slightly larger touch navigation. */
+.sidebar nav{gap:4px}
+.sidebar nav button{padding:9px 11px;border-radius:12px;gap:10px;font-size:13px}
+.sidebar nav button i{width:20px;font-size:18px}
+.jobs-page.embedded{padding:0}
+.jobs-hero{gap:18px}
+.jobs-hero>img{width:145px;height:145px;object-fit:cover;border-radius:50%;mix-blend-mode:multiply}
+.travel-visual{display:flex;align-items:center;gap:12px}
+.travel-visual>img{width:145px;height:145px;object-fit:cover;border-radius:50%;mix-blend-mode:multiply}
+@media(max-width:900px){
+  .mobile-nav{padding:8px 4px calc(8px + env(safe-area-inset-bottom))}
+  .mobile-nav button{padding:3px 2px;gap:3px}
+  .mobile-nav button i{font-size:19px}
+  .mobile-nav button span{font-size:9px}
+}
+@media(max-width:560px){
+  .jobs-hero>img{width:105px;height:105px;float:right;margin-top:-98px}
+  .travel-visual>img{width:92px;height:92px}
+  .travel-visual{justify-content:space-between}
+}

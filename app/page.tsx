@@ -940,8 +940,9 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
     "未记录":{title:"先记录一次周期，建议会更贴合",body:"添加最近一次经期开始和结束日期，即可获得阶段提示。",drink:"日常温水，少量多次。",meal:"规律三餐，保证蛋白质与蔬菜。",sport:"从散步和基础拉伸开始。",wear:"根据体感选择舒适、透气的衣物。"},
   };
   const advice=phaseAdvice[info.phase];
-  const outfitIndex=weather?.temperature!==undefined?(weather.temperature>=28?1:weather.temperature<=12?3:localSeason(location.latitude)==="秋日"?2:0):dailyIndex(today,4);
-  const outfitLabels=["轻柔春日层次","清爽夏日防晒","温暖秋日叠穿","舒适冬日保暖"];
+  const outfitPools=weather?.code!==undefined&&weather.code>=50?[4,6,11]:weather?.temperature!==undefined&&weather.temperature>=28?[1,5,9]:weather?.temperature!==undefined&&weather.temperature<=12?[3,7,10,11]:localSeason(location.latitude)==="秋日"?[7,10,2]:[0,2,6,8];
+  const outfitIndex=outfitPools[dailyIndex(today,outfitPools.length)];
+  const outfitLabels=["柔粉针织花裙","清爽背心阔腿裤","海盐蓝条纹裙","粉米长羽绒层次","雨天浅蓝防护","轻盈碎花吊带裙","奶油衬衫牛仔裤","燕麦针织格纹裙","柔粉百褶通勤装","轻便短裤休闲装","焦糖碎花叠穿","雾蓝长外套保暖"];
   const estimateCalories=(text:string)=>{
     const table:{key:RegExp;kcal:number;name:string}[]=[
       {key:/米饭|一碗饭/,kcal:230,name:"米饭"},{key:/面条|拌面|汤面/,kcal:350,name:"面食"},{key:/鸡胸|鸡肉/,kcal:220,name:"鸡肉"},{key:/牛肉/,kcal:280,name:"牛肉"},{key:/猪肉|水煮肉片/,kcal:420,name:"猪肉"},{key:/奶茶/,kcal:450,name:"奶茶"},{key:/拿铁|咖啡/,kcal:120,name:"咖啡"},{key:/酸奶/,kcal:150,name:"酸奶"},{key:/鸡蛋|水煮蛋/,kcal:80,name:"鸡蛋"},{key:/苹果|香蕉|水果/,kcal:120,name:"水果"},{key:/沙拉/,kcal:300,name:"沙拉"},{key:/火锅/,kcal:800,name:"火锅"},{key:/燕麦/,kcal:180,name:"燕麦"},{key:/豆腐/,kcal:120,name:"豆腐"},{key:/虾|虾仁/,kcal:120,name:"虾仁"},{key:/三文鱼/,kcal:260,name:"三文鱼"},{key:/面包|吐司/,kcal:160,name:"面包"},{key:/坚果|杏仁|南瓜籽/,kcal:170,name:"坚果"},{key:/蔬菜|菠菜|西兰花/,kcal:60,name:"蔬菜"}

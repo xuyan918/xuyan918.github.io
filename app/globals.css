@@ -109,3 +109,5 @@
   .travel-visual>img{width:92px;height:92px}
   .travel-visual{justify-content:space-between}
 }
+.growth-page .goal-columns{grid-template-columns:repeat(2,1fr)}
+@media(max-width:560px){.growth-page .goal-columns{grid-template-columns:1fr}}

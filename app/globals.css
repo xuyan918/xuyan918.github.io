@@ -111,3 +111,16 @@
 }
 .growth-page .goal-columns{grid-template-columns:repeat(2,1fr)}
 @media(max-width:560px){.growth-page .goal-columns{grid-template-columns:1fr}}
+
+/* Preserve generated artwork proportions. */
+.outfit-inspiration>div{width:min(100%,420px);min-height:0;aspect-ratio:1/1;justify-self:center;background-size:400% 300%}
+@media(max-width:650px){.outfit-inspiration>div{width:min(100%,360px);min-height:0}}
+
+/* Place the world-map heading above the full-width source image. */
+.world-map{grid-template-columns:1fr;align-items:stretch;gap:18px;padding:30px}
+.world-map-copy{width:100%}
+.world-shape{width:100%;aspect-ratio:2/1;min-height:0;background-size:contain}
+@media(max-width:560px){.world-map{padding:20px}.world-shape{width:100%;min-height:0}}
+
+.special-category-edit{display:grid;gap:6px;font-size:9px;color:#8f7774}
+.special-category-edit input{border:1px solid #e5d6d2;background:#fff;border-radius:10px;padding:9px 10px;font-size:11px;color:#6f5a57}

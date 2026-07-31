@@ -16,7 +16,7 @@ type PeriodRecord = { id: string; start: string; end: string; updatedAt: number 
 type WorkoutPlan = { id: string; weekday: number; title: string; intensity: "轻柔" | "适中" | "较高"; order?:number; completedDates?:string[]; updatedAt: number };
 type HealthLog = { id: string; date: string; weight?: number; trained: boolean; workout?: string; foodNote: string; foodImage?:string; calories?: number; updatedAt: number };
 type Recipe = { id: string; meal: "早餐" | "午餐" | "晚餐"; name: string; ingredients: string; calories: number; custom?: boolean; updatedAt: number };
-type HealthSettings = { privacy: boolean; cycleLength: number; periodLength: number; updatedAt: number };
+type HealthSettings = { privacy: boolean; cycleLength: number; periodLength: number; country?:string; admin1?:string; city?:string; latitude?:number; longitude?:number; timezone?:string; updatedAt: number };
 type FinanceCategory = { id:string; type:"income"|"expense"; name:string; color:string; updatedAt:number };
 type FinanceEntry = { id:string; type:"income"|"expense"; categoryId:string; amount:number; note:string; date:string; time:string; updatedAt:number };
 type ShoppingItem = { id:string; name:string; price:number; saved?:number; purchased:boolean; updatedAt:number };
@@ -66,6 +66,22 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const todayKey = () => dayKey(new Date());
 const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const DEFAULT_LOCATION={country:"中国",admin1:"浙江省",city:"杭州市",latitude:30.2741,longitude:120.1551,timezone:"Asia/Shanghai"};
+const healthLocation=(settings:HealthSettings)=>({
+  country:settings.country||DEFAULT_LOCATION.country,
+  admin1:settings.admin1||DEFAULT_LOCATION.admin1,
+  city:settings.city||DEFAULT_LOCATION.city,
+  latitude:Number.isFinite(settings.latitude)?settings.latitude!:DEFAULT_LOCATION.latitude,
+  longitude:Number.isFinite(settings.longitude)?settings.longitude!:DEFAULT_LOCATION.longitude,
+  timezone:settings.timezone||DEFAULT_LOCATION.timezone,
+});
+const localSeason=(latitude:number,month=new Date().getMonth()+1)=>{
+  if(Math.abs(latitude)<23.5)return "热带时令";
+  const north=latitude>=0;
+  const season=month>=3&&month<=5?"春日":month>=6&&month<=8?"夏日":month>=9&&month<=11?"秋日":"冬日";
+  if(north)return season;
+  return ({春日:"秋日",夏日:"冬日",秋日:"春日",冬日:"夏日"} as Record<string,string>)[season];
+};
 const weekday = (date: string) => ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][new Date(`${date}T12:00:00`).getDay()];
 const displayDate = (date: string) => {
   const d = new Date(`${date}T12:00:00`);
@@ -240,7 +256,7 @@ const phaseThreeDefaults = (now = Date.now()) => {
       {id:"r5",meal:"晚餐" as const,name:"番茄虾仁豆腐汤",ingredients:"番茄、虾仁、豆腐、青菜",calories:390,updatedAt:now},
       {id:"r6",meal:"晚餐" as const,name:"南瓜鸡肉暖胃粥",ingredients:"南瓜、鸡肉、大米、小米",calories:430,updatedAt:now},
     ],
-    healthSettings:{privacy:false,cycleLength:28,periodLength:5,updatedAt:now},
+    healthSettings:{privacy:false,cycleLength:28,periodLength:5,...DEFAULT_LOCATION,updatedAt:now},
   };
 };
 
@@ -356,7 +372,7 @@ const greetings = [
   "你值得更好的生活，也在为喜欢的未来踏实努力。",
   "把日子过成喜欢的样子，本身就是一种了不起。",
   "小熊今天也很喜欢你认真生活的样子。",
-  "杭州的风吹过梧桐，而你比夏天更明亮。",
+  "窗外的风轻轻吹过，而你比今天更明亮。",
   "给今天留一点期待，也给自己留一点温柔。",
   "慢慢积累的每一天，都会在未来悄悄发光。",
   "先照顾好此刻的自己，再从容地走向下一站。",
@@ -403,7 +419,7 @@ function useWorkbench() {
           workoutPlans: Array.isArray(parsed.workoutPlans) ? parsed.workoutPlans : healthDefaults.workoutPlans,
           healthLogs: Array.isArray(parsed.healthLogs) ? parsed.healthLogs : healthDefaults.healthLogs,
           recipes: Array.isArray(parsed.recipes) ? parsed.recipes : healthDefaults.recipes,
-          healthSettings: parsed.healthSettings || healthDefaults.healthSettings,
+          healthSettings: {...healthDefaults.healthSettings,...(parsed.healthSettings||{})},
           financeCategories: Array.isArray(parsed.financeCategories) ? parsed.financeCategories : financeDefaults.financeCategories,
           financeEntries: cleanFinance.financeEntries,
           shoppingItems: Array.isArray(parsed.shoppingItems) ? parsed.shoppingItems : financeDefaults.shoppingItems,
@@ -534,7 +550,7 @@ export default function Home() {
           workoutPlans: Array.isArray(parsed.workoutPlans) ? parsed.workoutPlans : healthDefaults.workoutPlans,
           healthLogs: Array.isArray(parsed.healthLogs) ? parsed.healthLogs : healthDefaults.healthLogs,
           recipes: Array.isArray(parsed.recipes) ? parsed.recipes : healthDefaults.recipes,
-          healthSettings: parsed.healthSettings || healthDefaults.healthSettings,
+          healthSettings: {...healthDefaults.healthSettings,...(parsed.healthSettings||{})},
           financeCategories: Array.isArray(parsed.financeCategories) ? parsed.financeCategories : financeDefaults.financeCategories,
           financeEntries: cleanFinance.financeEntries,
           shoppingItems: Array.isArray(parsed.shoppingItems) ? parsed.shoppingItems : financeDefaults.shoppingItems,
@@ -639,6 +655,7 @@ function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: Workbench
   const [deleteMemo,setDeleteMemo]=useState<string|null>(null);
   const [showPromoReminders,setShowPromoReminders]=useState(false);
   const [homeWeather,setHomeWeather]=useState<{temperature:number;apparent:number;code:number}|null>(null);
+  const location=healthLocation(data.healthSettings);
   const todays = data.todos.filter((t) => t.date === today);
   const todayStudy = data.checkins.filter((c) => c.date === today);
   const careerCount = data.skills.filter((s) => s.progress === "已掌握").length;
@@ -657,7 +674,7 @@ function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: Workbench
     {label:"健身",done:fitnessCount,total:todayPlans.length,target:"health" as const,tab:"fitness" as const,detail:todayPlans.length?`${fitnessCount} / ${todayPlans.length} 项`:"今天暂无计划"},
     {label:"职业",done:careerCount,total:data.skills.length,target:"growth" as const,tab:"path" as const,detail:`${careerCount} / ${data.skills.length} 项`},
   ];
-  useEffect(()=>{fetch("https://api.open-meteo.com/v1/forecast?latitude=30.2741&longitude=120.1551&current=temperature_2m,apparent_temperature,weather_code&timezone=Asia%2FShanghai").then(r=>{if(!r.ok)throw new Error();return r.json()}).then(j=>setHomeWeather({temperature:j.current.temperature_2m,apparent:j.current.apparent_temperature,code:j.current.weather_code})).catch(()=>{})},[]);
+  useEffect(()=>{fetch(`https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,apparent_temperature,weather_code&timezone=${encodeURIComponent(location.timezone)}`).then(r=>{if(!r.ok)throw new Error();return r.json()}).then(j=>setHomeWeather({temperature:j.current.temperature_2m,apparent:j.current.apparent_temperature,code:j.current.weather_code})).catch(()=>{})},[location.latitude,location.longitude,location.timezone]);
   const monthPrefix=today.slice(0,7);
   const workoutCount=data.workoutPlans.reduce((sum,p)=>sum+(p.completedDates||[]).filter(date=>date.startsWith(monthPrefix)).length,0);
   const learningDays=new Set([...data.checkins.filter(x=>x.date.startsWith(monthPrefix)).map(x=>x.date),...data.skills.map(x=>x.lastCheckin).filter((x):x is string=>Boolean(x?.startsWith(monthPrefix)))]).size;
@@ -665,7 +682,7 @@ function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: Workbench
   const savingDone=data.shoppingItems.filter(x=>!x.purchased).reduce((sum,x)=>sum+Math.min(x.saved||0,x.price),0);
   const savingProgress=savingTarget?Math.min(100,Math.round(savingDone/savingTarget*100)):0;
   const phase=data.healthSettings.privacy?"隐私模式":cycleInfo(data).phase;
-  const weatherLead=homeWeather?homeWeather.code>=50?`杭州今天有雨、体感约 ${Math.round(homeWeather.apparent)}°C，记得带伞；`:`杭州今天体感约 ${Math.round(homeWeather.apparent)}°C，适合适度活动；`:"今天按自己的体感安排节奏；";
+  const weatherLead=homeWeather?homeWeather.code>=50?`${location.city}今天有雨、体感约 ${Math.round(homeWeather.apparent)}°C，记得带伞；`:`${location.city}今天体感约 ${Math.round(homeWeather.apparent)}°C，适合适度活动；`:"今天按自己的体感安排节奏；";
   const phaseTip=phase==="月经期"?"以保暖、补水和轻柔活动为主。":phase==="卵泡期"?"能量通常在回升，可以循序增加活动量。":phase==="排卵期"?"状态活跃时也要充分热身、注意关节稳定。":phase==="黄体期"?"给睡眠和稳定饮食多一点优先级。":"规律吃饭、适量活动，也记得留一点休息时间。";
   const healthTip=`${weatherLead}${phaseTip}`;
   const hour=d.getHours();
@@ -685,7 +702,7 @@ function Dashboard({ data, go, goSection, toggleTodo, patch }: { data: Workbench
     <section className="overview-card lilac dashboard-checkin"><div className="home-card-heading"><div><span className="eyebrow">TODAY&apos;S CHECK-IN</span><h2>今日打卡</h2></div><i>✦</i></div><div className="checkin-row">{checkinMetrics.map(x=>{const progress=x.total?x.done/x.total:0;const state=progress===0?"":progress>=1?"done":"partial";return <button key={x.label} className={state} onClick={()=>goSection(x.target,x.tab)}><i style={{"--check-progress":`${progress*360}deg`} as React.CSSProperties}>{progress>=1?"✓":progress>0?<b>{Math.round(progress*100)}</b>:""}</i><span><b>{x.label}</b><small>{x.detail}</small></span></button>})}</div></section>
     <section className="dashboard-insights">
       <section className="month-status"><div className="insight-head"><div><span className="eyebrow">THIS MONTH</span><h2>本月状态</h2></div></div><div className="month-metrics"><button onClick={()=>goSection("finance","shopping")}><i className="saving-ring" style={{"--saving-progress":`${savingProgress*3.6}deg`} as React.CSSProperties}><b>{savingProgress}%</b></i><span>储蓄进度</span></button><button onClick={()=>goSection("health","fitness")}><b>{workoutCount}<small> 次</small></b><span>运动完成</span></button><button onClick={()=>goSection("growth","learn")}><b>{learningDays}<small> 天</small></b><span>学习记录</span></button></div></section>
-      <button className="health-glance" onClick={()=>goSection("health","care")}><div className="insight-head"><div><span className="eyebrow">TODAY&apos;S WELLNESS</span><h2>今日健康提示</h2></div><i>{homeWeather?.code&&homeWeather.code>=50?"☂":"♡"}</i></div><p>{healthTip}</p><span>查看杭州保养建议 →</span></button>
+      <button className="health-glance" onClick={()=>goSection("health","care")}><div className="insight-head"><div><span className="eyebrow">TODAY&apos;S WELLNESS</span><h2>今日健康提示</h2></div><i>{homeWeather?.code&&homeWeather.code>=50?"☂":"♡"}</i></div><p>{healthTip}</p><span>查看保养建议 →</span></button>
     </section>
     {showPromoReminders&&<Modal title="未来三天 · 商家优惠活动" onClose={()=>setShowPromoReminders(false)}><div className="home-promo-list">{promoReminders.map(x=><section key={x.item.id}><time>{x.date===today?"今天":`${dateDiff(today,x.date)} 天后`} · {displayDate(x.date)}</time><p><i>％</i>{x.item.title}</p></section>)}</div></Modal>}
     {deleteTodo&&<Modal title="删除这个临时待办吗？" onClose={()=>setDeleteTodo(null)}><p className="modal-copy">它也会同时从日历和备忘中的 To-do 汇总里移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTodo(null)}>先保留</button><button className="danger" onClick={()=>{patch(x=>({...x,todos:x.todos.filter(y=>y.id!==deleteTodo)}));setDeleteTodo(null)}}>确认删除</button></div></Modal>}
@@ -761,6 +778,10 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
   const [deleteWorkout,setDeleteWorkout]=useState<string|null>(null);
   const [weather,setWeather]=useState<{temperature:number;humidity:number;apparent:number;code:number}|null>(null);
   const [weatherError,setWeatherError]=useState(false);
+  const location=healthLocation(data.healthSettings);
+  const [locationForm,setLocationForm]=useState({country:location.country,city:location.city});
+  const [locationSearching,setLocationSearching]=useState(false);
+  const [locationError,setLocationError]=useState("");
   const today=todayKey();
   const info=cycleInfo(data);
   const todayLog=data.healthLogs.find(l=>l.date===today);
@@ -792,12 +813,32 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
   const moveWorkout=(id:string,direction:number)=>patch(d=>{const current=d.workoutPlans.find(p=>p.id===id);if(!current)return d;const group=d.workoutPlans.filter(p=>p.weekday===current.weekday).sort((a,b)=>(a.order??0)-(b.order??0));const index=group.findIndex(p=>p.id===id),target=index+direction;if(target<0||target>=group.length)return d;[group[index],group[target]]=[group[target],group[index]];const orders=new Map(group.map((p,i)=>[p.id,i]));return {...d,workoutPlans:d.workoutPlans.map(p=>orders.has(p.id)?{...p,order:orders.get(p.id),updatedAt:Date.now()}:p)}});
   const handleFoodImage=(e:ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{const image=new Image();image.onload=()=>{const scale=Math.min(1,900/image.width);const canvas=document.createElement("canvas");canvas.width=Math.round(image.width*scale);canvas.height=Math.round(image.height*scale);canvas.getContext("2d")?.drawImage(image,0,0,canvas.width,canvas.height);setFoodImage(canvas.toDataURL("image/jpeg",.72))};image.src=String(reader.result)};reader.readAsDataURL(file)};
   useEffect(()=>{
-    if(tab!=="care"||weather)return;
-    fetch("https://api.open-meteo.com/v1/forecast?latitude=30.2741&longitude=120.1551&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code&timezone=Asia%2FShanghai")
+    if(tab!=="care")return;
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code&timezone=${encodeURIComponent(location.timezone)}`)
       .then(r=>{if(!r.ok)throw new Error();return r.json()})
       .then(j=>setWeather({temperature:j.current.temperature_2m,humidity:j.current.relative_humidity_2m,apparent:j.current.apparent_temperature,code:j.current.weather_code}))
       .catch(()=>setWeatherError(true));
-  },[tab,weather]);
+  },[tab,location.latitude,location.longitude,location.timezone]);
+  const saveLocation=async(e:FormEvent)=>{
+    e.preventDefault();if(locationForm.city.trim().length<2)return;
+    setLocationSearching(true);setLocationError("");
+    try{
+      const countryCodes:Record<string,string>={中国:"CN",中国大陆:"CN",日本:"JP",韩国:"KR",大韩民国:"KR",英国:"GB",美国:"US",法国:"FR",德国:"DE",意大利:"IT",西班牙:"ES",加拿大:"CA",澳大利亚:"AU",新加坡:"SG",泰国:"TH",马来西亚:"MY"};
+      const countryCode=countryCodes[locationForm.country.trim()];
+      const cityAliases:Record<string,string>={东京:"Tokyo",首尔:"Seoul",伦敦:"London",纽约:"New York",巴黎:"Paris",柏林:"Berlin",罗马:"Rome",悉尼:"Sydney",墨尔本:"Melbourne",曼谷:"Bangkok",新加坡市:"Singapore"};
+      const cityQuery=cityAliases[locationForm.city.trim()]||locationForm.city.trim();
+      const response=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityQuery)}&count=10&language=zh&format=json${countryCode?`&countryCode=${countryCode}`:""}`);
+      if(!response.ok)throw new Error();
+      const results=(await response.json()).results||[];
+      const countryHint=locationForm.country.trim().toLowerCase();
+      type GeoResult={country?:string;country_code?:string;admin1?:string;name:string;latitude:number;longitude:number;timezone?:string};
+      const match=(results as GeoResult[]).find(x=>!countryHint||String(x.country||"").toLowerCase().includes(countryHint)||String(x.country_code||"").toLowerCase()===countryHint)||(results as GeoResult[])[0];
+      if(!match)throw new Error();
+      patch(d=>({...d,healthSettings:{...d.healthSettings,country:match.country||locationForm.country.trim(),admin1:match.admin1||"",city:match.name,latitude:match.latitude,longitude:match.longitude,timezone:match.timezone||"auto",updatedAt:Date.now()}}));
+      setLocationForm({country:match.country||locationForm.country.trim(),city:match.name});
+    }catch{setLocationError("没有找到这个城市，请检查国家和城市名称后再试。")}
+    finally{setLocationSearching(false)}
+  };
   const savePeriod=(e:FormEvent)=>{
     e.preventDefault();if(periodForm.end<periodForm.start)return;
     const record={id:uid(),...periodForm,updatedAt:Date.now()};
@@ -811,16 +852,24 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
     patch(d=>({...d,healthLogs:d.healthLogs.some(l=>l.date===today)?d.healthLogs.map(l=>l.date===today?{...l,weight:logForm.weight?Number(logForm.weight):l.weight,foodNote:logForm.foodNote||l.foodNote,foodImage:foodImage||l.foodImage,calories:calories||l.calories,updatedAt:Date.now()}:l):[...d.healthLogs,{id:uid(),date:today,weight:logForm.weight?Number(logForm.weight):undefined,trained:false,foodNote:logForm.foodNote,foodImage:foodImage||undefined,calories:calories||undefined,updatedAt:Date.now()}]}));setLogForm({weight:"",foodNote:""});
   };
   const addRecipe=(e:FormEvent)=>{e.preventDefault();if(!recipeForm.name.trim())return;const estimated=estimateCalories(`${recipeForm.name} ${recipeForm.ingredients}`).calories;patch(d=>({...d,recipes:[...d.recipes,{id:uid(),meal,name:recipeForm.name.trim(),ingredients:recipeForm.ingredients.trim(),calories:Number(recipeForm.calories)||estimated,custom:true,updatedAt:Date.now()}]}));setRecipeForm({name:"",ingredients:"",calories:""});setShowRecipe(false)};
+  const recipeMethod=(recipe:Recipe)=>({
+    r1:"燕麦加少量水煮 3–5 分钟，放凉后拌入无糖酸奶；铺上蓝莓和一小把坚果即可。",
+    r2:"鸡蛋煮熟或少油煎熟；牛油果压泥铺在烤脆的全麦吐司上，放上鸡蛋并少量调味。",
+    r3:"鸡胸肉用少量盐和黑胡椒腌 10 分钟后煎熟切片；与洗净的生菜、番茄和熟玉米拌匀。",
+    r4:"杂粮饭提前煮熟；西兰花焯水，菌菇与豆腐少油翻炒，最后铺在饭上并用生抽轻调味。",
+    r5:"番茄炒软出汁后加水煮开，放入豆腐和虾仁煮至变色，最后加入青菜并少量调味。",
+    r6:"大米和小米洗净后加水煮开，放入南瓜块小火煮软；加入鸡肉丝煮熟，搅匀至浓稠。",
+  } as Record<string,string>)[recipe.id]||`先将${recipe.ingredients||"食材"}洗净备好；按“主食或耐煮食材先熟、蛋白质充分加热、蔬菜最后加入”的顺序烹饪，少油少盐并根据实际份量调整。`;
   const solarTerms=["小寒","立春","惊蛰","清明","立夏","芒种","小暑","立秋","白露","寒露","立冬","大雪"];
-  const currentTerm=solarTerms[new Date().getMonth()];
+  const currentTerm=location.country.includes("中国")?solarTerms[new Date().getMonth()]:localSeason(location.latitude);
   const weatherText=(code:number)=>code<2?"晴朗":code<4?"多云":code<60?"阴天":code<80?"有雨":"强对流";
   return <div className="page health-page">
     <header className="health-hero"><div><span className="eyebrow">MY WELLNESS</span><h1>听见身体的小小声音</h1><p>记录周期、运动与饮食，让照顾自己成为轻松的日常。</p><div className="phase-pill"><i>✿</i><span>{data.healthSettings.privacy?"隐私模式已开启":`周期第 ${info.day||"–"} 天 · ${info.phase}`}</span></div></div><img src="/bears/bear-ribbon.jpg" alt="戴蝴蝶结的水彩小熊" /></header>
-    <nav className="growth-tabs health-tabs"><button className={tab==="cycle"?"active":""} onClick={()=>setTab("cycle")}>周期记录</button><button className={tab==="fitness"?"active":""} onClick={()=>setTab("fitness")}>健身计划</button><button className={tab==="food"?"active":""} onClick={()=>setTab("food")}>饮食与监测</button><button className={tab==="care"?"active":""} onClick={()=>setTab("care")}>杭州保养建议</button></nav>
+    <nav className="growth-tabs health-tabs"><button className={tab==="cycle"?"active":""} onClick={()=>setTab("cycle")}>周期记录</button><button className={tab==="fitness"?"active":""} onClick={()=>setTab("fitness")}>健身计划</button><button className={tab==="food"?"active":""} onClick={()=>setTab("food")}>饮食与监测</button><button className={tab==="care"?"active":""} onClick={()=>setTab("care")}>保养建议</button></nav>
     {tab==="cycle"&&<section className="health-grid">
       <article className="cycle-card feature"><div className="health-card-head"><div><span className="eyebrow">CYCLE OVERVIEW</span><h2>{data.healthSettings.privacy?"周期信息已隐藏":info.phase}</h2></div><button className={data.healthSettings.privacy?"private active":"private"} onClick={()=>patch(d=>({...d,healthSettings:{...d.healthSettings,privacy:!d.healthSettings.privacy,updatedAt:Date.now()}}))}>{data.healthSettings.privacy?"◉ 显示周期":"○ 隐藏周期"}</button></div>{data.healthSettings.privacy?<div className="privacy-cover"><span>♡</span><h3>小秘密被好好收起来了</h3><p>日历标注和预测也已同时隐藏。</p></div>:<><div className="cycle-ring"><div><b>{info.day}</b><span>周期天数</span></div></div><div className="cycle-metrics"><span><b>{avgCycle} 天</b>平均周期</span><span><b>{avgDuration} 天</b>平均经期</span><span><b>{displayDate(info.nextStart)}</b>预计下次</span></div></>}</article>
       <article className="cycle-card advice"><span className="eyebrow">TODAY&apos;S BODY NOTE</span><h2>{advice.title}</h2><p>{advice.body}</p><div className="phase-track">{["月经期","卵泡期","排卵期","黄体期"].map(x=><span className={x===info.phase?"active":""} key={x}>{x}</span>)}</div><small>周期预测仅用于日常记录，不替代医疗诊断。</small></article>
-      <article className="cycle-card records"><div className="health-card-head"><div><h2>经期记录</h2><p>记录越完整，预测越贴合你的节奏</p></div><button onClick={()=>setShowPeriod(true)}>＋ 添加记录</button></div><div className="period-list">{sortedPeriods.map(p=><div key={p.id}><i>✿</i><span><b>{displayDate(p.start)} — {displayDate(p.end)}</b><small>持续 {dateDiff(p.start,p.end)+1} 天</small></span><button onClick={()=>setDeletePeriod(p.id)}>×</button></div>)}</div></article>
+      <article className="cycle-card records"><div className="health-card-head"><div><span className="eyebrow">PERIOD RECORDS</span><h2>经期记录</h2><p>记录越完整，预测越贴合你的节奏</p></div><button onClick={()=>setShowPeriod(true)}>＋ 添加记录</button></div><div className="period-list">{sortedPeriods.map(p=><div key={p.id}><i>✿</i><span><b>{displayDate(p.start)} — {displayDate(p.end)}</b><small>持续 {dateDiff(p.start,p.end)+1} 天</small></span><button onClick={()=>setDeletePeriod(p.id)}>×</button></div>)}</div></article>
       {showPeriod&&<Modal title="添加经期记录" onClose={()=>setShowPeriod(false)}><form className="editor-form" onSubmit={savePeriod}><div className="two-col"><label>开始日期<input type="date" value={periodForm.start} onChange={e=>setPeriodForm({...periodForm,start:e.target.value})}/></label><label>结束日期<input type="date" min={periodForm.start} value={periodForm.end} onChange={e=>setPeriodForm({...periodForm,end:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowPeriod(false)}>取消</button><button>保存记录</button></div></form></Modal>}
       {deletePeriod&&<Modal title="删除这次经期记录吗？" onClose={()=>setDeletePeriod(null)}><p className="modal-copy">删除后周期平均值和预测日期会重新计算。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeletePeriod(null)}>先保留</button><button className="danger" onClick={()=>{patch(d=>({...d,periods:d.periods.filter(p=>p.id!==deletePeriod)}));setDeletePeriod(null)}}>确认删除</button></div></Modal>}
     </section>}
@@ -833,14 +882,15 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
     </section>}
     {tab==="food"&&<section>
       <div className="meal-tabs"><div>{(["早餐","午餐","晚餐"] as Recipe["meal"][]).map(x=><button className={meal===x?"active":""} key={x} onClick={()=>setMeal(x)}>{x}</button>)}</div><button onClick={()=>setShowRecipe(true)}>＋ 添加我的菜谱</button></div>
-      <div className="recipe-grid">{data.recipes.filter(r=>r.meal===meal).map(recipe=><article key={recipe.id}><span>{recipe.custom?"我的菜谱":meal}</span><h3>{recipe.name}</h3><p>{recipe.ingredients}</p><footer><b>约 {recipe.calories} kcal</b>{recipe.custom&&<button onClick={()=>setDeleteRecipe(recipe.id)}>删除</button>}</footer></article>)}</div>
+      <div className="recipe-grid">{data.recipes.filter(r=>r.meal===meal).map(recipe=><article key={recipe.id}><span>{recipe.custom?"我的菜谱":meal}</span><h3>{recipe.name}</h3><p>{recipe.ingredients}</p><details className="recipe-method"><summary>具体做法</summary><p>{recipeMethod(recipe)}</p></details><footer><b>约 {recipe.calories} kcal</b>{recipe.custom&&<button onClick={()=>setDeleteRecipe(recipe.id)}>删除</button>}</footer></article>)}</div>
       <section className="daily-health-log enhanced"><div><span className="eyebrow">DAILY CHECK</span><h2>今日健康记录</h2></div><label>体重（kg）<input type="number" step=".1" value={logForm.weight} onChange={e=>setLogForm({...logForm,weight:e.target.value})} placeholder={todayLog?.weight?String(todayLog.weight):"选填"}/></label><label className="food-description">饮食描述<input value={logForm.foodNote} onChange={e=>setLogForm({...logForm,foodNote:e.target.value})} placeholder={todayLog?.foodNote||"例如：一碗米饭、半份鸡胸肉、一杯酸奶"}/><small>{estimateCalories(logForm.foodNote).items.length?`已识别：${estimateCalories(logForm.foodNote).items.join("、")}`:"加入食物名称和份量，估算会更接近实际。"}</small></label><label className="food-photo"><input type="file" accept="image/*" capture="environment" onChange={handleFoodImage}/>{foodImage||todayLog?.foodImage?<img src={foodImage||todayLog?.foodImage} alt="今日餐食预览"/>:<span>＋ 拍照或上传餐食图片<small>选填 · 仅保存在当前设备</small></span>}</label><div className="calorie-result"><b>{estimateCalories(logForm.foodNote).calories||todayLog?.calories||"–"}</b><span>自动估算 kcal</span><small>结果为常见份量估值，仅供日常记录</small></div><button onClick={saveLog}>保存今日记录</button></section>
       {showRecipe&&<Modal title="添加我的菜谱" onClose={()=>setShowRecipe(false)}><form className="editor-form" onSubmit={addRecipe}><label>菜谱名称<input value={recipeForm.name} onChange={e=>setRecipeForm({...recipeForm,name:e.target.value})} required/></label><label>主要食材与份量<input value={recipeForm.ingredients} onChange={e=>setRecipeForm({...recipeForm,ingredients:e.target.value})} placeholder="例如：燕麦半碗、酸奶一杯、香蕉一根"/></label><label>热量（选填）<input type="number" value={recipeForm.calories} onChange={e=>setRecipeForm({...recipeForm,calories:e.target.value})} placeholder="留空则由工作台估算"/></label><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowRecipe(false)}>取消</button><button>保存菜谱</button></div></form></Modal>}
       {deleteRecipe&&<Modal title="删除这份自定义菜谱吗？" onClose={()=>setDeleteRecipe(null)}><p className="modal-copy">删除后会从你的菜谱清单中移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteRecipe(null)}>先保留</button><button className="danger" onClick={()=>{patch(d=>({...d,recipes:d.recipes.filter(r=>r.id!==deleteRecipe)}));setDeleteRecipe(null)}}>确认删除</button></div></Modal>}
     </section>}
     {tab==="care"&&<section>
-      <div className="weather-banner"><div><span className="eyebrow">HANGZHOU · {currentTerm}</span><h2>{weather?`${weatherText(weather.code)} · ${weather.temperature}°C`:"正在读取杭州天气…"}</h2><p>{weather?`体感 ${weather.apparent}°C · 湿度 ${weather.humidity}% · ${info.phase}`:weatherError?"暂时无法联网，以下按季节与周期提供离线建议。":"天气数据由 Open‑Meteo 提供，无需账号。"}</p></div><i>{weather&&weather.code>=50?"☂":"☼"}</i></div>
-      <div className="care-grid"><article><span>01 · 祛湿饮品</span><h3>{weather&&weather.humidity>75?"空气偏湿，适合清爽祛湿":"温和补水，照顾当下体感"}</h3><p>{advice.drink}</p></article><article><span>02 · 一日三餐</span><h3>顺应周期的轻盈搭配</h3><p>{advice.meal}</p></article><article><span>03 · 今日运动</span><h3>{weather&&weather.code>=50?"雨天优先室内":"按体感选择室内或户外"}</h3><p>{weather&&weather.code>=50?`今天更适合室内活动。${advice.sport}`:advice.sport}</p></article><article><span>04 · 穿搭灵感</span><h3>{weather?`${weather.apparent}°C 体感穿搭`:"杭州当季舒适穿搭"}</h3><p>{advice.wear}{weather&&weather.temperature>30?" 高温注意防晒、补水。":weather&&weather.temperature<12?" 气温偏低，注意腰腹和脚踝保暖。":""}</p></article></div>
+      <form className="location-picker" onSubmit={saveLocation}><div><span className="eyebrow">YOUR LOCATION</span><h2>所在地</h2><p>天气、气候、时令与相关建议会跟随这里更新。</p></div><label>国家 / 地区<input value={locationForm.country} onChange={e=>setLocationForm({...locationForm,country:e.target.value})} placeholder="中国"/></label><label>城市<input list="common-health-cities" value={locationForm.city} onChange={e=>setLocationForm({...locationForm,city:e.target.value})} placeholder="杭州市" required/><datalist id="common-health-cities"><option value="杭州市"/><option value="上海市"/><option value="北京市"/><option value="广州市"/><option value="深圳市"/><option value="成都市"/><option value="东京"/><option value="首尔"/><option value="伦敦"/><option value="纽约"/></datalist></label><button disabled={locationSearching}>{locationSearching?"正在定位…":"应用位置"}</button>{locationError&&<small>{locationError}</small>}</form>
+      <div className="weather-banner"><div><span className="eyebrow">{location.city.toUpperCase()} · {currentTerm}</span><h2>{weather?`${weatherText(weather.code)} · ${weather.temperature}°C`:`正在读取${location.city}天气…`}</h2><p>{weather?`体感 ${weather.apparent}°C · 湿度 ${weather.humidity}% · ${info.phase}`:weatherError?`暂时无法联网，以下按${localSeason(location.latitude)}与周期提供离线建议。`:"天气数据由 Open‑Meteo 提供，无需账号。"}</p></div><i>{weather&&weather.code>=50?"☂":"☼"}</i></div>
+      <div className="care-grid"><article><span>01 · 日常饮品</span><h3>{weather&&weather.humidity>75?"空气偏湿，适合清爽饮品":"温和补水，照顾当下体感"}</h3><p>{advice.drink}</p></article><article><span>02 · 一日三餐</span><h3>顺应周期的轻盈搭配</h3><p>{advice.meal}</p></article><article><span>03 · 今日运动</span><h3>{weather&&weather.code>=50?"雨天优先室内":"按体感选择室内或户外"}</h3><p>{weather&&weather.code>=50?`今天更适合室内活动。${advice.sport}`:advice.sport}</p></article><article><span>04 · 穿搭灵感</span><h3>{weather?`${weather.apparent}°C 体感穿搭`:`${location.city}${localSeason(location.latitude)}舒适穿搭`}</h3><p>{advice.wear}{weather&&weather.temperature>30?" 高温注意防晒、补水。":weather&&weather.temperature<12?" 气温偏低，注意腰腹和脚踝保暖。":""}</p></article></div>
       <p className="health-disclaimer">健康与周期建议仅用于日常自我照顾，不用于诊断或治疗；若有持续不适或周期明显异常，请及时咨询医生。</p>
     </section>}
   </div>;
@@ -1148,8 +1198,9 @@ function Travel({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>Wo
   const [templateForm,setTemplateForm]=useState({category:"其他杂物类",name:""});
   const [deleteTarget,setDeleteTarget]=useState<{kind:"destination"|"trip"|"template"|"itinerary"|"packing";id:string}|null>(null);
   const [weather,setWeather]=useState<{temperature:number;code:number}|null>(null);
+  const location=healthLocation(data.healthSettings);
   const active=data.travelPlans.find(x=>x.id===selectedId)||data.travelPlans[0];
-  useEffect(()=>{if(tab!=="local"||weather)return;fetch("https://api.open-meteo.com/v1/forecast?latitude=30.2741&longitude=120.1551&current=temperature_2m,weather_code&timezone=Asia%2FShanghai").then(r=>r.json()).then(j=>setWeather({temperature:j.current.temperature_2m,code:j.current.weather_code})).catch(()=>{})},[tab,weather]);
+  useEffect(()=>{if(tab!=="local")return;fetch(`https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,weather_code&timezone=${encodeURIComponent(location.timezone)}`).then(r=>r.json()).then(j=>setWeather({temperature:j.current.temperature_2m,code:j.current.weather_code})).catch(()=>{})},[tab,location.latitude,location.longitude,location.timezone]);
   const addDestination=(e:FormEvent)=>{e.preventDefault();if(!destination.place.trim())return;patch(d=>({...d,destinations:[...d.destinations,{id:uid(),place:destination.place.trim(),country:destination.country.trim()||"待补充",visited:false,updatedAt:Date.now()}]}));setDestination({place:"",country:""})};
   const addTrip=(e:FormEvent)=>{e.preventDefault();if(!tripForm.name.trim()||tripForm.endDate<tripForm.startDate)return;const id=uid();patch(d=>({...d,travelPlans:[...d.travelPlans,{id,name:tripForm.name.trim(),startDate:tripForm.startDate,endDate:tripForm.endDate,itinerary:[],packing:d.packingTemplate.map(x=>({...x,id:uid(),checked:false})),updatedAt:Date.now()}]}));setSelectedId(id);setTripForm({name:"",startDate:todayKey(),endDate:addDays(todayKey(),2)});setShowTrip(false)};
   const updatePlan=(fn:(p:TravelPlan)=>TravelPlan)=>patch(d=>({...d,travelPlans:d.travelPlans.map(p=>p.id===active?.id?{...fn(p),updatedAt:Date.now()}:p)}));
@@ -1162,23 +1213,23 @@ function Travel({data,patch}:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>Wo
     return {...d,travelPlans:d.travelPlans.map(p=>p.id===active?.id?{...p,itinerary:deleteTarget.kind==="itinerary"?p.itinerary.filter(x=>x.id!==deleteTarget.id):p.itinerary,packing:deleteTarget.kind==="packing"?p.packing.filter(x=>x.id!==deleteTarget.id):p.packing,updatedAt:Date.now()}:p)};
   });if(deleteTarget.kind==="trip")setSelectedId("");setDeleteTarget(null)};
   const done=active?.packing.filter(x=>x.checked).length||0,total=active?.packing.length||0;
-  const month=new Date().getMonth()+1;const rainy=weather?weather.code>=50:false;
-  const season=month>=3&&month<=5?"春日":month>=6&&month<=8?"夏日":month>=9&&month<=11?"秋日":"冬日";
+  const rainy=weather?weather.code>=50:false;
+  const season=localSeason(location.latitude);
   const localIdeas=rainy?[
-    ["书店与咖啡","去天目里或运河边找一家书店，慢慢看书写手账。","室内 · 雨天友好"],
-    ["博物馆半日","选一座博物馆，再为自己安排一顿安静的晚餐。","室内 · 轻松"],
-    ["手作体验","尝试陶艺、银饰或花艺，让注意力回到双手。","室内 · 治愈"],
+    ["书店与咖啡",`在${location.city}找一家安静的独立书店或咖啡馆，慢慢看书写手账。`,"室内 · 雨天友好"],
+    ["博物馆半日",`选一座${location.city}的博物馆，再为自己安排一顿安静的晚餐。`,"室内 · 轻松"],
+    ["手作体验",`搜索${location.city}附近的陶艺、银饰或花艺体验，让注意力回到双手。`,"室内 · 治愈"],
   ]:[
-    ["九溪轻徒步",`${season}沿九溪烟树慢慢走，带水并留意防晒。`,"户外 · 低强度"],
-    ["西湖晨间散步","从北山街出发，避开人流，给自己一小时。","户外 · 免费"],
-    ["运河边看落日","沿桥西历史街区散步，再选一家小店吃晚饭。","户外 · 松弛"],
+    ["城市轻徒步",`${season}在${location.city}选择一条绿道或公园路线慢慢走，带水并留意防晒。`,"户外 · 低强度"],
+    ["晨间散步",`在${location.city}找一处临水或林荫步道，避开人流，给自己一小时。`,"户外 · 免费"],
+    ["看一场落日",`查询${location.city}适合看落日的开放空间，散步后再选一家小店吃晚饭。`,"户外 · 松弛"],
   ];
   return <div className="page travel-page">
     <section className="travel-hero"><div><span className="eyebrow">MY LITTLE JOURNEYS</span><h1>把想去的远方，慢慢变成计划</h1><p>从目的地心愿、每日行程到打包清单，每一段期待都好好收进这里。</p></div><div className="travel-stamp"><b>{data.destinations.filter(x=>x.visited).length}</b><span>已抵达</span><small>{data.destinations.filter(x=>!x.visited).length} 个地方正在等你</small></div></section>
-    <nav className="growth-tabs travel-tabs"><button className={tab==="dreams"?"active":""} onClick={()=>setTab("dreams")}>目的地清单</button><button className={tab==="plans"?"active":""} onClick={()=>setTab("plans")}>旅行计划</button><button className={tab==="local"?"active":""} onClick={()=>setTab("local")}>杭州独处</button></nav>
+    <nav className="growth-tabs travel-tabs"><button className={tab==="dreams"?"active":""} onClick={()=>setTab("dreams")}>目的地清单</button><button className={tab==="plans"?"active":""} onClick={()=>setTab("plans")}>旅行计划</button><button className={tab==="local"?"active":""} onClick={()=>setTab("local")}>{location.city}独处</button></nav>
     {tab==="dreams"&&<section className="travel-dreams"><div className="travel-section-head"><div><span className="eyebrow">DREAM DESTINATIONS</span><h2>总有一天，要亲自去看看</h2></div><p>去过的地方会留下温柔的勾选。</p></div><form className="destination-form" onSubmit={addDestination}><input value={destination.place} onChange={e=>setDestination({...destination,place:e.target.value})} placeholder="城市或目的地"/><input value={destination.country} onChange={e=>setDestination({...destination,country:e.target.value})} placeholder="国家 / 地区"/><button>＋ 添加</button></form><div className="destination-grid">{data.destinations.map(x=><article className={x.visited?"visited":""} key={x.id}><label><input type="checkbox" checked={x.visited} onChange={()=>patch(d=>({...d,destinations:d.destinations.map(y=>y.id===x.id?{...y,visited:!y.visited,updatedAt:Date.now()}:y)}))}/><i>{x.visited?"✓":"✈"}</i></label><div><span>{x.country}</span><h3>{x.place}</h3><small>{x.visited?"已经抵达过":"想去看看"}</small></div><button onClick={()=>setDeleteTarget({kind:"destination",id:x.id})}>×</button></article>)}</div></section>}
     {tab==="plans"&&<section><div className="travel-section-head"><div><span className="eyebrow">TRIP PLANNER</span><h2>一场旅行，一份独立计划</h2></div><button onClick={()=>setShowTrip(true)}>＋ 新建旅行</button></div><div className="trip-layout"><aside className="trip-list">{data.travelPlans.map(p=><button className={active?.id===p.id?"active":""} key={p.id} onClick={()=>setSelectedId(p.id)}><i>✦</i><span><b>{p.name}</b><small>{displayDate(p.startDate)} — {displayDate(p.endDate)}</small></span></button>)}{!data.travelPlans.length&&<Empty text="还没有旅行计划，先写下第一段期待吧。"/>}</aside>{active&&<div className="trip-detail"><header><div><span className="eyebrow">UPCOMING TRIP</span><input value={active.name} onChange={e=>updatePlan(p=>({...p,name:e.target.value}))}/><p>{active.startDate} 至 {active.endDate} · 共 {dateDiff(active.startDate,active.endDate)+1} 天</p></div><button onClick={()=>setDeleteTarget({kind:"trip",id:active.id})}>删除计划</button></header><div className="trip-columns"><section><h3>每日行程</h3><form className="itinerary-form" onSubmit={addItinerary}><input type="number" min="1" value={itinerary.day} onChange={e=>setItinerary({...itinerary,day:e.target.value})}/><input type="time" value={itinerary.time} onChange={e=>setItinerary({...itinerary,time:e.target.value})}/><input value={itinerary.content} onChange={e=>setItinerary({...itinerary,content:e.target.value})} placeholder="添加行程内容"/><button>添加</button></form><div className="itinerary-list">{[...active.itinerary].sort((a,b)=>a.day-b.day||a.time.localeCompare(b.time)).map(x=><article key={x.id}><b>DAY {x.day}</b><time>{x.time}</time><input value={x.content} onChange={e=>updatePlan(p=>({...p,itinerary:p.itinerary.map(y=>y.id===x.id?{...y,content:e.target.value}:y)}))}/><button onClick={()=>setDeleteTarget({kind:"itinerary",id:x.id})}>×</button></article>)}</div></section><section className="packing-panel"><div className="packing-head"><div><h3>打包清单</h3><span>{done} / {total} 已装好</span></div><b>{total?Math.round(done/total*100):0}%</b></div><div className="packing-progress"><i style={{width:`${total?done/total*100:0}%`}}/></div><form className="packing-add" onSubmit={addPacking}><select value={packingForm.category} onChange={e=>setPackingForm({...packingForm,category:e.target.value})}>{Object.keys(packingGroups).map(x=><option key={x}>{x}</option>)}</select><input value={packingForm.name} onChange={e=>setPackingForm({...packingForm,name:e.target.value})} placeholder="添加物品"/><button>＋</button></form>{Object.keys(packingGroups).map(group=>{const items=active.packing.filter(x=>x.category===group);return items.length?<div className="packing-group" key={group}><h4>{group}</h4>{items.map(x=><label key={x.id}><input type="checkbox" checked={x.checked} onChange={()=>updatePlan(p=>({...p,packing:p.packing.map(y=>y.id===x.id?{...y,checked:!y.checked}:y)}))}/><i></i><input className={x.checked?"strike":""} value={x.name} onChange={e=>updatePlan(p=>({...p,packing:p.packing.map(y=>y.id===x.id?{...y,name:e.target.value}:y)}))}/><button onClick={()=>setDeleteTarget({kind:"packing",id:x.id})}>×</button></label>)}</div>:null})}</section></div></div>}</div><section className="template-panel"><div><h3>固定必备物品模板</h3><p>新建旅行时会自动带入；这里的修改不会覆盖已有旅行。</p></div><form onSubmit={e=>{e.preventDefault();if(!templateForm.name.trim())return;patch(d=>({...d,packingTemplate:[...d.packingTemplate,{id:uid(),category:templateForm.category,name:templateForm.name.trim(),checked:false}]}));setTemplateForm({...templateForm,name:""})}}><select value={templateForm.category} onChange={e=>setTemplateForm({...templateForm,category:e.target.value})}>{Object.keys(packingGroups).map(x=><option key={x}>{x}</option>)}</select><input value={templateForm.name} onChange={e=>setTemplateForm({...templateForm,name:e.target.value})} placeholder="新增固定物品"/><button>添加</button></form><div>{data.packingTemplate.map(x=><span key={x.id}>{x.name}<button onClick={()=>setDeleteTarget({kind:"template",id:x.id})}>×</button></span>)}</div></section></section>}
-    {tab==="local"&&<section><div className="local-weather"><div><span className="eyebrow">HANGZHOU · {season}</span><h2>{weather?`${weather.code>=50?"雨天":"晴好"} · ${weather.temperature}°C`:"按杭州当季推荐"}</h2><p>{weather?"已结合当前天气更新；无法联网时仍会提供季节建议。":"正在尝试获取无需账号的实时天气…"}</p></div><i>{rainy?"☂":"☼"}</i></div><div className="solo-grid">{localIdeas.map((x,i)=><article key={x[0]}><span>0{i+1} · {x[2]}</span><h3>{x[0]}</h3><p>{x[1]}</p><small>一个人也可以，把时间过得很漂亮。</small></article>)}</div></section>}
+    {tab==="local"&&<section><div className="local-weather"><div><span className="eyebrow">{location.city.toUpperCase()} · {season}</span><h2>{weather?`${weather.code>=50?"雨天":"晴好"} · ${weather.temperature}°C`:`按${location.city}当季推荐`}</h2><p>{weather?"已结合当前天气更新；无法联网时仍会提供季节建议。":"正在尝试获取无需账号的实时天气…"}</p></div><i>{rainy?"☂":"☼"}</i></div><div className="solo-grid">{localIdeas.map((x,i)=><article key={x[0]}><span>0{i+1} · {x[2]}</span><h3>{x[0]}</h3><p>{x[1]}</p><small>一个人也可以，把时间过得很漂亮。</small></article>)}</div></section>}
     {showTrip&&<Modal title="创建旅行计划" onClose={()=>setShowTrip(false)}><form className="editor-form" onSubmit={addTrip}><label>旅行名称<input value={tripForm.name} onChange={e=>setTripForm({...tripForm,name:e.target.value})} placeholder="例如：济州岛四日慢旅行" required/></label><div className="two-col"><label>出发日期<input type="date" value={tripForm.startDate} onChange={e=>setTripForm({...tripForm,startDate:e.target.value})}/></label><label>返程日期<input type="date" min={tripForm.startDate} value={tripForm.endDate} onChange={e=>setTripForm({...tripForm,endDate:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowTrip(false)}>取消</button><button>创建并带入清单</button></div></form></Modal>}
     {deleteTarget&&<Modal title="确认删除这项内容吗？" onClose={()=>setDeleteTarget(null)}><p className="modal-copy">删除后会从当前设备和后续导出的 JSON 中移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTarget(null)}>先保留</button><button className="danger" onClick={remove}>确认删除</button></div></Modal>}
   </div>;

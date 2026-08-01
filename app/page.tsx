@@ -581,6 +581,7 @@ export default function Home() {
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "event" | "todo" | "memo"; id: string } | null>(null);
   const [importMode, setImportMode] = useState<"replace" | "merge" | null>(null);
   const [pendingImport, setPendingImport] = useState<WorkbenchData | null>(null);
+  const [showDataTools,setShowDataTools]=useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -770,11 +771,13 @@ export default function Home() {
       </main>
 
       <nav className="mobile-nav">{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span></button>)}</nav>
+      <button className="mobile-data-button" onClick={()=>setShowDataTools(true)} aria-label="打开数据备份"><i>⇩</i><span>数据备份</span></button>
       {view !== "memos" && <button className="bear-fab" onClick={() => setMemoModal(true)} aria-label="快速备忘"><img src="/bears/v2/bear-heart.png" alt="" /><span>记一下</span></button>}
 
       <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={readImport} />
       {eventModal && <EventEditor item={eventModal === "new" ? null : eventModal} date={selectedDate} data={data} patch={patch} close={() => setEventModal(null)} />}
       {memoModal && <MemoEditor patch={patch} close={() => setMemoModal(false)} />}
+      {showDataTools&&<Modal title="数据备份与恢复" onClose={()=>setShowDataTools(false)}><div className="mobile-data-panel"><p>当前设备中有 <b>{data.events.length}</b> 条日程、<b>{data.todos.length}</b> 条待办、<b>{data.memos.length}</b> 条备忘，以及其他模块的本机记录。</p><button onClick={exportJSON}>导出当前数据 JSON</button><button className="secondary" onClick={()=>fileRef.current?.click()}>导入以前的 JSON 备份</button><small>请在确认找到原有数据后立即导出；导入时可以选择智能合并，不会直接覆盖当前内容。</small></div></Modal>}
       {deleteTarget && <Modal title="要删除这条内容吗？" onClose={() => setDeleteTarget(null)}><p className="modal-copy">删除后无法从当前设备恢复，小熊再帮你确认一次。</p><div className="modal-actions"><button className="secondary" onClick={() => setDeleteTarget(null)}>先保留</button><button className="danger" onClick={performDelete}>确认删除</button></div></Modal>}
       {pendingImport && <Modal title="导入工作台数据" onClose={() => { setPendingImport(null); setImportMode(null); }}><p className="modal-copy">文件中有 {pendingImport.events.length} 条日程、{pendingImport.todos.length} 个待办和 {pendingImport.memos.length} 条备忘。</p><div className="mode-choices"><label><input type="radio" checked={importMode === "merge"} onChange={() => setImportMode("merge")} /> 智能合并 <small>保留两端内容，同一条以最新修改为准</small></label><label><input type="radio" checked={importMode === "replace"} onChange={() => setImportMode("replace")} /> 完全覆盖 <small>当前设备数据将被文件内容替换</small></label></div><div className="modal-actions"><button className="secondary" onClick={() => setPendingImport(null)}>取消</button><button onClick={performImport}>确认导入</button></div></Modal>}
     </div>

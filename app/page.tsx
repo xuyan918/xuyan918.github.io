@@ -43,6 +43,7 @@ type MoodEntry = { id:string; date:string; mood:string; content:string; tagIds:s
 type WorkbenchData = {
   version: 1;
   exportedAt?: number;
+  modifiedAt?: number;
   categories: Category[];
   events: EventItem[];
   todos: Todo[];
@@ -82,6 +83,11 @@ type WorkbenchData = {
 };
 
 const STORAGE_KEY = "bear-workbench-v1";
+const BACKUP_KEY = "bear-workbench-history-v1";
+type BackupSnapshot={id:string;createdAt:number;reason:string;raw:string};
+const readSnapshots=():BackupSnapshot[]=>{try{const value=JSON.parse(localStorage.getItem(BACKUP_KEY)||"[]");return Array.isArray(value)?value:[]}catch{return []}};
+const saveSnapshot=(raw:string,reason:string,force=false)=>{if(!raw)return;try{JSON.parse(raw)}catch{return}const snapshots=readSnapshots();if(snapshots[0]?.raw===raw)return;if(!force&&snapshots[0]&&Date.now()-snapshots[0].createdAt<120000)return;const next=[{id:uid(),createdAt:Date.now(),reason,raw},...snapshots].slice(0,15);try{localStorage.setItem(BACKUP_KEY,JSON.stringify(next))}catch{try{localStorage.setItem(BACKUP_KEY,JSON.stringify(next.slice(0,3)))}catch{}}};
+const dataModifiedAt=(data:any)=>{if(Number.isFinite(data?.modifiedAt))return data.modifiedAt as number;let latest=0;Object.values(data||{}).forEach(value=>{if(Array.isArray(value))value.forEach(item=>{if(Number.isFinite(item?.updatedAt))latest=Math.max(latest,item.updatedAt);if(Number.isFinite(item?.createdAt))latest=Math.max(latest,item.createdAt)})});return latest};
 const SALARY_CLEANUP_KEY = "bear-workbench-salary-cleaned-20260729";
 const GROWTH_CLEANUP_KEY = "bear-workbench-growth-cleaned-20260731";
 const JOB_FILTER_CLEANUP_KEY = "bear-workbench-job-filters-cleaned-20260731";
@@ -474,6 +480,7 @@ function useWorkbench() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
+        saveSnapshot(saved,"打开工作台前自动保护",true);
         const parsed = JSON.parse(saved);
         const defaults = phaseTwoDefaults();
         const healthDefaults = phaseThreeDefaults();
@@ -508,6 +515,7 @@ function useWorkbench() {
           .sort((a:LearningTrack,b:LearningTrack)=>trackOrder.indexOf(a.id)-trackOrder.indexOf(b.id));
         setData({
           ...parsed,
+          modifiedAt:parsed.modifiedAt||dataModifiedAt(parsed)||Date.now(),
           todos: (Array.isArray(parsed.todos) ? parsed.todos : []).filter((todo:Todo)=>todo.text!=="更新求职简历"),
           skills: (()=>{const list=(Array.isArray(parsed.skills)?parsed.skills:defaults.skills).map((skill:Skill)=>({...skill,name:skill.name.replace(/（基础）/g,"")}));const expression=defaults.skills.find(x=>x.id==="expression");return expression&&!list.some((x:Skill)=>x.id==="expression")?[...list,expression]:list})(),
           learningTracks: normalizedTracks,
@@ -542,14 +550,18 @@ function useWorkbench() {
           moodTags: Array.isArray(parsed.moodTags) ? parsed.moodTags : petDefaults.moodTags,
           moodEntries: Array.isArray(parsed.moodEntries) ? parsed.moodEntries : petDefaults.moodEntries,
         });
-      } else setData(seedData());
+      } else setData({...seedData(),modifiedAt:Date.now()});
     } catch {
-      setData(seedData());
+      const raw=localStorage.getItem(STORAGE_KEY);if(raw)saveSnapshot(raw,"读取异常时紧急保护",true);
+      setData({...seedData(),modifiedAt:Date.now()});
     }
   }, []);
   useEffect(() => {
-    if (data) localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (!data)return;
+    const current=localStorage.getItem(STORAGE_KEY);
+    if(current){try{const stored=JSON.parse(current);if(dataModifiedAt(stored)>dataModifiedAt(data)){setData(stored);return}}catch{}const next=JSON.stringify(data);if(current!==next){saveSnapshot(current,"修改前自动保护");localStorage.setItem(STORAGE_KEY,next)}}else localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
   }, [data]);
+  useEffect(()=>{const sync=(event:StorageEvent)=>{if(event.key!==STORAGE_KEY||!event.newValue)return;try{const incoming=JSON.parse(event.newValue);setData(current=>!current||dataModifiedAt(incoming)>dataModifiedAt(current)?incoming:current)}catch{}};window.addEventListener("storage",sync);return()=>window.removeEventListener("storage",sync)},[]);
   return [data, setData] as const;
 }
 
@@ -582,6 +594,7 @@ export default function Home() {
   const [importMode, setImportMode] = useState<"replace" | "merge" | null>(null);
   const [pendingImport, setPendingImport] = useState<WorkbenchData | null>(null);
   const [showDataTools,setShowDataTools]=useState(false);
+  const [backupHistory,setBackupHistory]=useState<BackupSnapshot[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -600,7 +613,7 @@ export default function Home() {
 
   if (!data) return <main className="loading">小熊正在整理工作台…</main>;
 
-  const patch = (fn: (draft: WorkbenchData) => WorkbenchData) => setData((old) => old ? fn(old) : old);
+  const patch = (fn: (draft: WorkbenchData) => WorkbenchData) => setData((old) => old ? {...fn(old),modifiedAt:Date.now()} : old);
   const go = (next: View, date?: string) => { if (date) setSelectedDate(date); setView(next); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const goSection=(next:"growth"|"health"|"finance",tab:"learn"|"fitness"|"path"|"care"|"shopping")=>{
     if(next==="growth")setGrowthStartTab(tab==="learn"?"learn":"path");
@@ -630,13 +643,16 @@ export default function Home() {
     setDeleteTarget(null);
   };
 
-  const exportJSON = () => {
-    const blob = new Blob([JSON.stringify({ ...data, exportedAt: Date.now() }, null, 2)], { type: "application/json" });
+  const downloadJSON=(raw:string,name:string)=>{
+    const blob = new Blob([raw], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `小熊工作台-${todayKey()}.json`; a.click();
+    a.href = url; a.download = name; a.click();
     URL.revokeObjectURL(url);
   };
+  const exportJSON = () => downloadJSON(JSON.stringify({ ...data, exportedAt: Date.now() }, null, 2),`小熊工作台-${todayKey()}.json`);
+  const openDataTools=()=>{setBackupHistory(readSnapshots());setShowDataTools(true)};
+  const restoreSnapshot=(snapshot:BackupSnapshot)=>{try{const restored=JSON.parse(snapshot.raw) as WorkbenchData;saveSnapshot(JSON.stringify(data),"恢复历史版本前保护",true);setData({...restored,modifiedAt:Date.now()});setShowDataTools(false)}catch{alert("这个历史版本无法读取，请先导出后保留。")}};
 
   const readImport = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -697,7 +713,7 @@ export default function Home() {
 
   const performImport = () => {
     if (!pendingImport || !importMode) return;
-    if (importMode === "replace") setData(pendingImport);
+    if (importMode === "replace") {saveSnapshot(JSON.stringify(data),"导入覆盖前保护",true);setData({...pendingImport,modifiedAt:Date.now()});}
     else patch((current) => {
       const merge = <T extends { id: string; updatedAt: number }>(a: T[], b: T[]) => {
         const map = new Map(a.map((x) => [x.id, x]));
@@ -754,7 +770,7 @@ export default function Home() {
       <aside className="sidebar">
         <div className="brand"><img src="/bears/v2/bear-heart.png" alt="" /><div><strong>小熊工作台</strong><span>认真生活，也要拥抱自己</span></div></div>
         <nav>{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span></button>)}</nav>
-        <div className="sync-box"><span>✦ 数据只在本机保存</span><button onClick={exportJSON}>导出 JSON</button><button className="secondary" onClick={() => fileRef.current?.click()}>导入 JSON</button></div>
+        <div className="sync-box"><span>✦ 数据安全中心</span><button onClick={openDataTools}>备份与恢复</button><button onClick={exportJSON}>导出 JSON</button><button className="secondary" onClick={() => fileRef.current?.click()}>导入 JSON</button></div>
       </aside>
 
       <main className="content">
@@ -771,13 +787,13 @@ export default function Home() {
       </main>
 
       <nav className="mobile-nav">{nav.map((n) => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><i>{n.icon}</i><span>{n.label}</span></button>)}</nav>
-      <button className="mobile-data-button" onClick={()=>setShowDataTools(true)} aria-label="打开数据备份"><i>⇩</i><span>数据备份</span></button>
+      <button className="mobile-data-button" onClick={openDataTools} aria-label="打开数据备份"><i>⇩</i><span>数据备份</span></button>
       {view !== "memos" && <button className="bear-fab" onClick={() => setMemoModal(true)} aria-label="快速备忘"><img src="/bears/v2/bear-heart.png" alt="" /><span>记一下</span></button>}
 
       <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={readImport} />
       {eventModal && <EventEditor item={eventModal === "new" ? null : eventModal} date={selectedDate} data={data} patch={patch} close={() => setEventModal(null)} />}
       {memoModal && <MemoEditor patch={patch} close={() => setMemoModal(false)} />}
-      {showDataTools&&<Modal title="数据备份与恢复" onClose={()=>setShowDataTools(false)}><div className="mobile-data-panel"><p>当前设备中有 <b>{data.events.length}</b> 条日程、<b>{data.todos.length}</b> 条待办、<b>{data.memos.length}</b> 条备忘，以及其他模块的本机记录。</p><button onClick={exportJSON}>导出当前数据 JSON</button><button className="secondary" onClick={()=>fileRef.current?.click()}>导入以前的 JSON 备份</button><small>请在确认找到原有数据后立即导出；导入时可以选择智能合并，不会直接覆盖当前内容。</small></div></Modal>}
+      {showDataTools&&<Modal title="数据安全中心" onClose={()=>setShowDataTools(false)}><div className="mobile-data-panel"><p>当前设备中有 <b>{data.events.length}</b> 条日程、<b>{data.todos.length}</b> 条待办、<b>{data.memos.length}</b> 条备忘，以及其他模块的本机记录。</p><div className="data-primary-actions"><button onClick={exportJSON}>导出当前数据 JSON</button><button className="secondary" onClick={()=>fileRef.current?.click()}>导入以前的 JSON 备份</button></div><section className="backup-history"><header><div><b>自动历史版本</b><small>修改前与升级前自动保留，最多 15 份</small></div><span>{backupHistory.length} 份</span></header>{backupHistory.map(snapshot=>{let summary="历史数据";try{const item=JSON.parse(snapshot.raw);summary=`${item.events?.length||0} 日程 · ${item.todos?.length||0} 待办 · ${item.memos?.length||0} 备忘`}catch{}return <article key={snapshot.id}><div><b>{new Date(snapshot.createdAt).toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</b><span>{snapshot.reason} · {summary}</span></div><button className="secondary" onClick={()=>downloadJSON(snapshot.raw,`小熊工作台-历史版本-${snapshot.createdAt}.json`)}>导出</button><button onClick={()=>restoreSnapshot(snapshot)}>恢复</button></article>})}{!backupHistory.length&&<small>从下一次修改开始，这里会自动保留可恢复的历史版本。</small>}</section><small>自动历史能防止误覆盖；重要数据仍建议定期导出 JSON 到“文件”或 iCloud Drive。</small></div></Modal>}
       {deleteTarget && <Modal title="要删除这条内容吗？" onClose={() => setDeleteTarget(null)}><p className="modal-copy">删除后无法从当前设备恢复，小熊再帮你确认一次。</p><div className="modal-actions"><button className="secondary" onClick={() => setDeleteTarget(null)}>先保留</button><button className="danger" onClick={performDelete}>确认删除</button></div></Modal>}
       {pendingImport && <Modal title="导入工作台数据" onClose={() => { setPendingImport(null); setImportMode(null); }}><p className="modal-copy">文件中有 {pendingImport.events.length} 条日程、{pendingImport.todos.length} 个待办和 {pendingImport.memos.length} 条备忘。</p><div className="mode-choices"><label><input type="radio" checked={importMode === "merge"} onChange={() => setImportMode("merge")} /> 智能合并 <small>保留两端内容，同一条以最新修改为准</small></label><label><input type="radio" checked={importMode === "replace"} onChange={() => setImportMode("replace")} /> 完全覆盖 <small>当前设备数据将被文件内容替换</small></label></div><div className="modal-actions"><button className="secondary" onClick={() => setPendingImport(null)}>取消</button><button onClick={performImport}>确认导入</button></div></Modal>}
     </div>

@@ -86,6 +86,7 @@ const SALARY_CLEANUP_KEY = "bear-workbench-salary-cleaned-20260729";
 const GROWTH_CLEANUP_KEY = "bear-workbench-growth-cleaned-20260731";
 const JOB_FILTER_CLEANUP_KEY = "bear-workbench-job-filters-cleaned-20260731";
 const SPECIAL_DAYS_CLEANUP_KEY = "bear-workbench-special-days-categories-20260731";
+const CONTENT_REFRESH_KEY = "bear-workbench-content-refresh-20260801";
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const todayKey = () => dayKey(new Date());
@@ -170,7 +171,7 @@ const lessonFor=(skill:Skill,topic:string)=>{
   return {title:`${skill.name} · ${topic}`,definition:`“${topic}”是 ${skill.name} 学习路径中的关键部分。${detail?.intro||""}`,explanation:`学习时不要只记术语：先弄清它解决什么问题、输入和输出是什么、失败时会怎样，再把它放进真实任务中验证。${detail?.steps?.join("；")||""}。`,example:examples[skill.id]||"把这个知识点放入一个真实的小任务中，记录你的假设、操作步骤、结果和需要改进的地方。",practice:detail?.practice||[]};
 };
 const SKILL_LINKS:Record<string,{label:string;url:string}[]> = {
-  agent:[{label:"OpenAI Agents 指南",url:"https://platform.openai.com/docs/guides/agents"},{label:"OpenAI Cookbook",url:"https://cookbook.openai.com/"}],html:[{label:"MDN：HTML",url:"https://developer.mozilla.org/zh-CN/docs/Web/HTML"}],xpath:[{label:"MDN：XPath",url:"https://developer.mozilla.org/zh-CN/docs/Web/XML/XPath"}],python:[{label:"Python 官方教程",url:"https://docs.python.org/zh-cn/3/tutorial/"}],mysql:[{label:"MySQL Reference Manual",url:"https://dev.mysql.com/doc/refman/8.4/en/"}],api:[{label:"MDN：HTTP",url:"https://developer.mozilla.org/zh-CN/docs/Web/HTTP"},{label:"Postman Learning Center",url:"https://learning.postman.com/"}],prompt:[{label:"OpenAI Prompt Engineering",url:"https://platform.openai.com/docs/guides/prompt-engineering"}],workflow:[{label:"n8n 官方文档",url:"https://docs.n8n.io/"}],bi:[{label:"Microsoft Learn：Power BI",url:"https://learn.microsoft.com/zh-cn/training/powerplatform/power-bi"}],warehouse:[{label:"Google Cloud：BigQuery",url:"https://cloud.google.com/bigquery/docs/introduction"}],linux:[{label:"Ubuntu 命令行入门",url:"https://ubuntu.com/tutorials/command-line-for-beginners"}],expression:[{label:"B站：高情商沟通与拒绝",url:"https://search.bilibili.com/all?keyword=%E9%AB%98%E6%83%85%E5%95%86%20%E6%B2%9F%E9%80%9A%20%E6%8B%92%E7%BB%9D"},{label:"B站：职场向上管理",url:"https://search.bilibili.com/all?keyword=%E8%81%8C%E5%9C%BA%20%E5%90%91%E4%B8%8A%E7%AE%A1%E7%90%86"}]
+  agent:[{label:"B站：AI Agent 入门",url:"https://search.bilibili.com/all?keyword=AI%20Agent%20%E5%85%A5%E9%97%A8"}],html:[{label:"菜鸟教程：HTML",url:"https://www.runoob.com/html/html-tutorial.html"}],xpath:[{label:"B站：XPath 实战",url:"https://search.bilibili.com/all?keyword=XPath%20%E5%AE%9E%E6%88%98"}],python:[{label:"菜鸟教程：Python",url:"https://www.runoob.com/python3/python3-tutorial.html"}],mysql:[{label:"菜鸟教程：MySQL",url:"https://www.runoob.com/mysql/mysql-tutorial.html"}],api:[{label:"B站：HTTP 与 API",url:"https://search.bilibili.com/all?keyword=HTTP%20API%20%E5%85%A5%E9%97%A8"}],prompt:[{label:"B站：提示词工程",url:"https://search.bilibili.com/all?keyword=%E6%8F%90%E7%A4%BA%E8%AF%8D%E5%B7%A5%E7%A8%8B"}],workflow:[{label:"B站：工作流自动化",url:"https://search.bilibili.com/all?keyword=%E5%B7%A5%E4%BD%9C%E6%B5%81%E8%87%AA%E5%8A%A8%E5%8C%96"}],bi:[{label:"B站：Power BI 入门",url:"https://search.bilibili.com/all?keyword=Power%20BI%20%E5%85%A5%E9%97%A8"}],warehouse:[{label:"阿里云：数据仓库基础",url:"https://developer.aliyun.com/article/740387"}],linux:[{label:"菜鸟教程：Linux",url:"https://www.runoob.com/linux/linux-tutorial.html"}],expression:[{label:"B站：高情商沟通与拒绝",url:"https://search.bilibili.com/all?keyword=%E9%AB%98%E6%83%85%E5%95%86%20%E6%B2%9F%E9%80%9A%20%E6%8B%92%E7%BB%9D"},{label:"B站：职场向上管理",url:"https://search.bilibili.com/all?keyword=%E8%81%8C%E5%9C%BA%20%E5%90%91%E4%B8%8A%E7%AE%A1%E7%90%86"}]
 };
 const SKILL_DETAILS:Record<string,{intro:string;steps:string[];practice:string[]}> = {
   agent:{intro:"Agent 能围绕目标规划步骤、调用工具并根据结果继续行动。重点还包括可控、可观测和失败可恢复。",steps:["理解模型、工具、状态与记忆的分工","用结构化输出约束每一步","为超时、重复执行和敏感操作建立边界"],practice:["做一个读取待办并生成计划的 Agent","记录工具调用结果和错误","设计必须人工确认的动作"]},
@@ -308,7 +309,6 @@ const phaseFourDefaults = (now=Date.now()) => ({
 
 const phaseFiveDefaults = (now=Date.now()) => ({
   jobs:[
-    {id:"job-jiansheng",company:"浙江健盛集团",title:"RPA 工程师",salary:"8–12K · 13薪",companySize:1000,location:"杭州 · 萧山区",jd:"参与业务流程梳理与自动化开发，岗位关键词包含 RPA；适合继续积累企业级流程交付经验。",url:"https://mwenku.51job.com/hangzhou_jobs/202601/Python/",source:"前程无忧公开招聘页",publishedAt:"2026-07-29",status:"感兴趣" as JobStatus,statusUpdatedAt:now,updatedAt:now},
   ] as JobListing[],
   jobCriteria:[] as JobCriterion[],
 });
@@ -363,8 +363,8 @@ const catDefaults=(now=Date.now())=>({
   catWeights:[] as CatWeight[],
   readingBooks:[] as ReadingBook[],
   savedPodcasts:[] as SavedPodcast[],
-  bookCategories:["女性","新闻","读书","金融","人工智能","商业","小说"].map((name,i)=>({id:`book-cat-${i}`,name,updatedAt:now})) as MoodTag[],
-  podcastCategories:["女性","新闻","读书","金融","人工智能","商业"].map((name,i)=>({id:`podcast-cat-${i}`,name,updatedAt:now})) as MoodTag[],
+  bookCategories:["文学","金融","人工智能","商业"].map((name,i)=>({id:`book-cat-${i}`,name,updatedAt:now})) as MoodTag[],
+  podcastCategories:["情感","金融","人工智能","商业"].map((name,i)=>({id:`podcast-cat-${i}`,name,updatedAt:now})) as MoodTag[],
   moodTags:["朋友","阅读","思考","美食","工作"].map((name,i)=>({id:`mood-tag-${i}`,name,updatedAt:now})) as MoodTag[],
   moodEntries:[] as MoodEntry[],
 });
@@ -442,11 +442,17 @@ function useWorkbench() {
         const shouldCleanGrowth = localStorage.getItem(GROWTH_CLEANUP_KEY)!=="done";
         const shouldCleanJobFilters = localStorage.getItem(JOB_FILTER_CLEANUP_KEY)!=="done";
         const shouldCleanSpecialDays = localStorage.getItem(SPECIAL_DAYS_CLEANUP_KEY)!=="done";
+        const shouldRefreshContent = localStorage.getItem(CONTENT_REFRESH_KEY)!=="done";
         const cleanFinance = withoutStoredSalary(parsed,financeDefaults,shouldCleanSalary);
         if(shouldCleanSalary)localStorage.setItem(SALARY_CLEANUP_KEY,"done");
         if(shouldCleanGrowth)localStorage.setItem(GROWTH_CLEANUP_KEY,"done");
         if(shouldCleanJobFilters)localStorage.setItem(JOB_FILTER_CLEANUP_KEY,"done");
         if(shouldCleanSpecialDays)localStorage.setItem(SPECIAL_DAYS_CLEANUP_KEY,"done");
+        if(shouldRefreshContent)localStorage.setItem(CONTENT_REFRESH_KEY,"done");
+        const normalizedBookCategories=(Array.isArray(parsed.bookCategories)?parsed.bookCategories:petDefaults.bookCategories).filter((x:MoodTag)=>!["女性","新闻","读书","小说"].includes(x.name));
+        if(!normalizedBookCategories.some((x:MoodTag)=>x.name==="文学"))normalizedBookCategories.unshift({id:"book-cat-literature",name:"文学",updatedAt:Date.now()});
+        const normalizedPodcastCategories=(Array.isArray(parsed.podcastCategories)?parsed.podcastCategories:petDefaults.podcastCategories).filter((x:MoodTag)=>!["女性","新闻","读书"].includes(x.name));
+        if(!normalizedPodcastCategories.some((x:MoodTag)=>x.name==="情感"))normalizedPodcastCategories.unshift({id:"podcast-cat-emotion",name:"情感",updatedAt:Date.now()});
         const trackOrder=["law","finance-study","photoshop","ielts","topik","cpa"];
         const trackDefaults=new Map(defaults.learningTracks.map(track=>[track.id,track]));
         const normalizedTracks=(Array.isArray(parsed.learningTracks)?parsed.learningTracks:defaults.learningTracks)
@@ -474,7 +480,7 @@ function useWorkbench() {
           shoppingItems: Array.isArray(parsed.shoppingItems) ? parsed.shoppingItems : financeDefaults.shoppingItems,
           savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : financeDefaults.savingsGoals,
           financeSettings: cleanFinance.financeSettings,
-          jobs: Array.isArray(parsed.jobs) ? parsed.jobs : jobDefaults.jobs,
+          jobs: (Array.isArray(parsed.jobs) ? parsed.jobs : jobDefaults.jobs).filter((job:JobListing)=>job.id!=="job-jiansheng"),
           jobCriteria: (Array.isArray(parsed.jobCriteria) ? parsed.jobCriteria : jobDefaults.jobCriteria).filter((criterion:JobCriterion)=>!shouldCleanJobFilters||!["criterion-keyword","criterion-size","criterion-location"].includes(criterion.id)),
           destinations: Array.isArray(parsed.destinations) ? parsed.destinations : travelDefaults.destinations,
           travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
@@ -486,10 +492,10 @@ function useWorkbench() {
           catGrowth: Array.isArray(parsed.catGrowth) ? parsed.catGrowth : petDefaults.catGrowth,
           catHealth: Array.isArray(parsed.catHealth) ? parsed.catHealth : petDefaults.catHealth,
           catWeights: Array.isArray(parsed.catWeights) ? parsed.catWeights : petDefaults.catWeights,
-          readingBooks: Array.isArray(parsed.readingBooks) ? parsed.readingBooks : petDefaults.readingBooks,
-          savedPodcasts: Array.isArray(parsed.savedPodcasts) ? parsed.savedPodcasts : petDefaults.savedPodcasts,
-          bookCategories: Array.isArray(parsed.bookCategories) ? parsed.bookCategories : petDefaults.bookCategories,
-          podcastCategories: Array.isArray(parsed.podcastCategories) ? parsed.podcastCategories : petDefaults.podcastCategories,
+          readingBooks: (Array.isArray(parsed.readingBooks) ? parsed.readingBooks : petDefaults.readingBooks).map((x:ReadingBook)=>shouldRefreshContent&&["女性","新闻","读书","小说"].includes(x.category)?{...x,category:"文学"}:x),
+          savedPodcasts: (Array.isArray(parsed.savedPodcasts) ? parsed.savedPodcasts : petDefaults.savedPodcasts).map((x:SavedPodcast)=>shouldRefreshContent&&["女性","新闻","读书"].includes(x.category)?{...x,category:"情感"}:x),
+          bookCategories: normalizedBookCategories,
+          podcastCategories: normalizedPodcastCategories,
           moodTags: Array.isArray(parsed.moodTags) ? parsed.moodTags : petDefaults.moodTags,
           moodEntries: Array.isArray(parsed.moodEntries) ? parsed.moodEntries : petDefaults.moodEntries,
         });
@@ -780,11 +786,14 @@ function Dashboard({ data, go, goSection, openCat, toggleTodo, patch }: { data: 
   const phaseTip=phase==="月经期"?"以保暖、补水和轻柔活动为主。":phase==="卵泡期"?"能量通常在回升，可以循序增加活动量。":phase==="排卵期"?"状态活跃时也要充分热身、注意关节稳定。":phase==="黄体期"?"给睡眠和稳定饮食多一点优先级。":"规律吃饭、适量活动，也记得留一点休息时间。";
   const healthTip=`${weatherLead}${phaseTip}`;
   const hour=d.getHours();
-  const timeGreeting=hour<11?"早上好":hour<14?"中午好":hour<18?"下午好":"晚上好";
+  const timeGreeting=hour>=5&&hour<11?"早上好":hour>=11&&hour<14?"中午好":hour>=14&&hour<18?"下午好":"晚上好";
+  const warmLines={morning:["新的一天，先从一件小事开始","晨光刚好，慢慢找到今天的节奏","给今天一点期待，也给自己一点温柔"],noon:["午间也记得好好吃饭和休息","忙到一半，先给自己留一点松弛","上午辛苦了，下午也从容一点"],afternoon:["下午好，把剩下的事轻轻接住","喝口水、伸伸肩，再继续向前","不必赶路，稳稳完成就很好"],night:["夜深了，今天已经做得很好","把未完成的事留给明天也可以","慢慢收好今天，安心去休息"]};
+  const warmPeriod=hour>=5&&hour<11?"morning":hour>=11&&hour<14?"noon":hour>=14&&hour<18?"afternoon":"night";
+  const warmLine=warmLines[warmPeriod][dailyIndex(today,warmLines[warmPeriod].length)];
   const addTodo=(e:FormEvent)=>{e.preventDefault();if(!todoText.trim())return;patch(x=>({...x,todos:[...x.todos,{id:uid(),date:today,text:todoText.trim(),done:false,order:todays.length,updatedAt:Date.now()}]}));setTodoText("")};
   const addMemo=(e:FormEvent)=>{e.preventDefault();if(!memoText.trim())return;patch(x=>({...x,memos:x.memos.map(m=>({...m,order:m.order+1})).concat({id:uid(),text:memoText.trim(),order:0,createdAt:Date.now(),updatedAt:Date.now()})}));setMemoText("")};
   return <div className="page dashboard">
-    <header className="topbar"><div><p>{d.getFullYear()}年{d.getMonth()+1}月{d.getDate()}日 · {weekday(today)}</p><h1>{timeGreeting}，今天也慢慢来 <span>♡</span></h1></div><button className="avatar" aria-label="个人设置"><img src="/bears/v2/bear-profile.png" alt="" /></button></header>
+    <header className="topbar"><div><p>{d.getFullYear()}年{d.getMonth()+1}月{d.getDate()}日 · {weekday(today)}</p><h1>{timeGreeting}，{warmLine} <span>♡</span></h1></div><button className="avatar" aria-label="个人设置"><img src="/bears/v2/bear-profile.png" alt="" /></button></header>
     <section className="hero"><div className="hero-copy"><span className="eyebrow">TODAY&apos;S LITTLE NOTE</span><blockquote>“{greeting}”</blockquote><p>— 来自今天的小熊</p></div><img src="/bears/v2/bear-heart.png" alt="抱着粉色爱心的水彩小熊" /></section>
     <div className="section-title"><div><span>今日概览</span><h2>把重要的事，轻轻接住</h2></div><button className="text-btn" onClick={() => go("calendar", today)}>查看今日日程 →</button></div>
     {(reminders.length>0||promoReminders.length>0)&&<section className="dashboard-reminder future-status"><div className="insight-head"><div><span className="eyebrow">NEXT THREE DAYS</span><h2>未来三天提醒</h2></div></div><div className="future-reminder-items">{promoReminders.length>0&&<button onClick={()=>setShowPromoReminders(true)}><b>％ 商家优惠活动</b><small>未来三天共 {promoReminders.length} 项，点击展开</small></button>}{reminders.map(x=><button key={x.item.id} onClick={()=>{go("memos");setTimeout(()=>document.getElementById("special-dates")?.scrollIntoView({behavior:"smooth"}),120)}}><b>{x.item.kind==="生日"?"🎂":"✦"} {x.item.title}</b><small>{x.date===today?"今天":`${dateDiff(today,x.date)} 天后`}</small></button>)}</div></section>}
@@ -864,19 +873,38 @@ function Memos({ data, move, onAdd, onDelete, patch }: any) {
   const [selectedCategory,setSelectedCategory]=useState<SpecialCategory|null>(null);
   const [showCategory,setShowCategory]=useState(false);
   const [categoryName,setCategoryName]=useState("");
+  const [batchText,setBatchText]=useState("");
+  const [batchStatus,setBatchStatus]=useState("");
   const [editingSpecial,setEditingSpecial]=useState<SpecialDay|null>(null);
   const [moodForm,setMoodForm]=useState({id:"",date:todayKey(),mood:"平静",content:"",tagIds:[] as string[]});
   const [tagDraft,setTagDraft]=useState("");
   const freshForm=()=>({title:"",date:todayKey(),rule:"fixed" as "fixed"|"weekly"|"monthly"|"yearly",weekday:"1",monthDay:"1",month:String(new Date().getMonth()+1),reminderDays:"3"});
   const [specialForm,setSpecialForm]=useState(freshForm);
   const saveMemo=(id:string)=>{if(memoText.trim())patch((d:WorkbenchData)=>({...d,memos:d.memos.map(m=>m.id===id?{...m,text:memoText.trim(),updatedAt:Date.now()}:m)}));setEditingMemo(null)};
-  const openCategory=(category:SpecialCategory)=>{setSelectedCategory(category);setEditingSpecial(null);setSpecialForm(freshForm())};
+  const openCategory=(category:SpecialCategory)=>{setSelectedCategory(category);setEditingSpecial(null);setSpecialForm(freshForm());setBatchText("");setBatchStatus("")};
   const startEdit=(item:SpecialDay)=>{setEditingSpecial(item);setSpecialForm({title:item.title,date:item.date,rule:item.recurrence||"fixed",weekday:String(item.weekday??1),monthDay:String(item.monthDay??1),month:String(item.month??1),reminderDays:String(item.reminderDays)})};
   const saveSpecial=(e:FormEvent)=>{e.preventDefault();if(!selectedCategory||!specialForm.title.trim())return;const rule=specialForm.rule;const item:SpecialDay={id:editingSpecial?.id||(selectedCategory.id==="merchant"?`promo-${uid()}`:uid()),title:specialForm.title.trim(),kind:selectedCategory.name,calendar:"公历",date:specialForm.date,reminderDays:Number(specialForm.reminderDays)||0,updatedAt:editingSpecial?.updatedAt||Date.now(),recurrence:rule==="fixed"?undefined:rule,weekday:rule==="weekly"?Number(specialForm.weekday):undefined,monthDay:rule==="monthly"||rule==="yearly"?Number(specialForm.monthDay):undefined,month:rule==="yearly"?Number(specialForm.month):undefined};patch((d:WorkbenchData)=>({...d,specialDays:editingSpecial?d.specialDays.map(x=>x.id===editingSpecial.id?item:x):[...d.specialDays,item]}));setEditingSpecial(null);setSpecialForm(freshForm())};
   const addCategory=(e:FormEvent)=>{e.preventDefault();if(!categoryName.trim())return;const category:SpecialCategory={id:uid(),name:categoryName.trim(),icon:"✦",order:data.specialCategories.length,updatedAt:Date.now()};patch((d:WorkbenchData)=>({...d,specialCategories:[...d.specialCategories,category]}));setCategoryName("");setShowCategory(false);openCategory(category)};
   const categoryItems=(category:SpecialCategory)=>data.specialDays.filter((x:SpecialDay)=>category.id==="merchant"?x.id.startsWith("promo-"):x.kind===category.name&&!x.id.startsWith("promo-"));
+  const importSpecialDays=()=>{
+    if(!selectedCategory||!batchText.trim())return;
+    const weekdayMap:Record<string,number>={日:0,天:0,一:1,二:2,三:3,四:4,五:5,六:6};
+    const rows=batchText.split(/[\n；;。]+/).map(x=>x.trim()).filter(Boolean);
+    const imported:SpecialDay[]=[];
+    rows.forEach((row,rowIndex)=>{
+      let recurrence:"weekly"|"monthly"|"yearly"|undefined;let weekdayValue:number|undefined;let monthDay:number|undefined;let month:number|undefined;let date=todayKey();let names="";
+      let match=row.match(/^每周([一二三四五六日天])\s*[：:]?\s*(.+)$/);if(match){recurrence="weekly";weekdayValue=weekdayMap[match[1]];names=match[2]}
+      if(!match){match=row.match(/^每月(\d{1,2})[号日]\s*[：:]?\s*(.+)$/);if(match){recurrence="monthly";monthDay=Number(match[1]);names=match[2]}}
+      if(!match){match=row.match(/^每年(\d{1,2})月(\d{1,2})[号日]?\s*[：:]?\s*(.+)$/);if(match){recurrence="yearly";month=Number(match[1]);monthDay=Number(match[2]);names=match[3]}}
+      if(!match){match=row.match(/^(20\d{2})年(\d{1,2})月(\d{1,2})[号日]?\s*(?:是|为|：|:)?\s*(.+)$/);if(match){date=`${match[1]}-${pad(Number(match[2]))}-${pad(Number(match[3]))}`;names=match[4]}}
+      if(!match){match=row.match(/^(\d{1,2})月(\d{1,2})[号日]?\s*(?:是|为|：|:)?\s*(.+)$/);if(match){recurrence="yearly";month=Number(match[1]);monthDay=Number(match[2]);names=match[3]}}
+      if(!names)return;
+      names.split(/[、，,]+/).map(x=>x.trim()).filter(Boolean).forEach((title,itemIndex)=>imported.push({id:selectedCategory.id==="merchant"?`promo-${uid()}`:uid(),title,kind:selectedCategory.name,calendar:"公历",date,reminderDays:3,recurrence,weekday:weekdayValue,monthDay,month,updatedAt:Date.now()+rowIndex*100+itemIndex}));
+    });
+    if(imported.length){patch((d:WorkbenchData)=>({...d,specialDays:[...d.specialDays,...imported]}));setBatchText("");setBatchStatus(`已识别并添加 ${imported.length} 个日子。`)}else setBatchStatus("没有识别到日期，请按示例格式输入后再试。");
+  };
   return <div className="page memo-page">
-    <header className="page-head"><div><span className="eyebrow">LITTLE NOTES</span><h1>备忘</h1><p>所有历史灵感都收在这里。</p></div></header>
+    <header className="memo-hero"><div><span className="eyebrow">LITTLE NOTES</span><h1>备忘</h1><p>把灵感、重要日子和心情，都温柔地安放在这里。</p></div><img src="/bears/v2/bear-ribbon.png" alt="戴粉色蝴蝶结的水彩小熊" /></header>
     <nav className="growth-tabs memo-tabs"><button className={memoTab==="quick"?"active":""} onClick={()=>setMemoTab("quick")}>快速备忘</button><button className={memoTab==="special"?"active":""} onClick={()=>setMemoTab("special")}>特别日子</button><button className={memoTab==="mood"?"active":""} onClick={()=>setMemoTab("mood")}>心情手帐</button></nav>
     {memoTab==="quick"&&<>
     <div className="memo-grid single"><section className="paper-panel"><div className="panel-head"><div><span className="eyebrow">QUICK NOTES</span><h2>快速备忘</h2><p>点击文字即可修改，也可以排序或删除</p></div><div className="quick-memo-actions"><span>共 {data.memos.length} 条</span><button onClick={onAdd}>＋ 添加快速备忘</button></div></div>
@@ -891,6 +919,7 @@ function Memos({ data, move, onAdd, onDelete, patch }: any) {
     {memoTab==="mood"&&<section className="mood-journal"><div className="growth-section-head"><div><span className="eyebrow">MOOD JOURNAL</span><h2>心情手帐</h2></div><p>记下今天真实的感受，也给想法贴一个容易找到的标签。</p></div><form className="mood-form" onSubmit={e=>{e.preventDefault();if(!moodForm.content.trim())return;const item:MoodEntry={id:moodForm.id||uid(),date:moodForm.date,mood:moodForm.mood,content:moodForm.content.trim(),tagIds:moodForm.tagIds,updatedAt:Date.now()};patch((d:WorkbenchData)=>({...d,moodEntries:moodForm.id?d.moodEntries.map(x=>x.id===moodForm.id?item:x):[item,...d.moodEntries]}));setMoodForm({id:"",date:todayKey(),mood:"平静",content:"",tagIds:[]})}}><div><input type="date" value={moodForm.date} onChange={e=>setMoodForm({...moodForm,date:e.target.value})}/><select value={moodForm.mood} onChange={e=>setMoodForm({...moodForm,mood:e.target.value})}>{["开心","平静","期待","疲惫","低落","生气","焦虑"].map(x=><option key={x}>{x}</option>)}</select></div><textarea value={moodForm.content} onChange={e=>setMoodForm({...moodForm,content:e.target.value})} placeholder="今天发生了什么？此刻有什么想法？"/><div className="mood-tag-picker">{data.moodTags.map((tag:MoodTag)=><button type="button" className={moodForm.tagIds.includes(tag.id)?"active":""} key={tag.id} onClick={()=>setMoodForm({...moodForm,tagIds:moodForm.tagIds.includes(tag.id)?moodForm.tagIds.filter(x=>x!==tag.id):[...moodForm.tagIds,tag.id]})}>#{tag.name}</button>)}</div><button>{moodForm.id?"保存修改":"写进手帐"}</button></form><div className="mood-tag-manager"><form onSubmit={e=>{e.preventDefault();if(!tagDraft.trim())return;patch((d:WorkbenchData)=>({...d,moodTags:[...d.moodTags,{id:uid(),name:tagDraft.trim(),updatedAt:Date.now()}]}));setTagDraft("")}}><input value={tagDraft} onChange={e=>setTagDraft(e.target.value)} placeholder="新建标签"/><button>＋</button></form>{data.moodTags.map((tag:MoodTag)=><label key={tag.id}><input value={tag.name} onChange={e=>patch((d:WorkbenchData)=>({...d,moodTags:d.moodTags.map(x=>x.id===tag.id?{...x,name:e.target.value,updatedAt:Date.now()}:x)}))}/><button onClick={()=>patch((d:WorkbenchData)=>({...d,moodTags:d.moodTags.filter(x=>x.id!==tag.id),moodEntries:d.moodEntries.map(x=>({...x,tagIds:x.tagIds.filter(id=>id!==tag.id)}))}))}>×</button></label>)}</div><div className="mood-entry-list">{[...data.moodEntries].sort((a:MoodEntry,b:MoodEntry)=>b.date.localeCompare(a.date)||b.updatedAt-a.updatedAt).map((entry:MoodEntry)=><article key={entry.id}><header><b>{entry.mood}</b><time>{displayDate(entry.date)}</time></header><p>{entry.content}</p><div>{entry.tagIds.map(id=>data.moodTags.find((x:MoodTag)=>x.id===id)).filter(Boolean).map((tag:MoodTag)=><span key={tag.id}>#{tag.name}</span>)}</div><footer><button onClick={()=>setMoodForm({...entry})}>修改</button><button onClick={()=>patch((d:WorkbenchData)=>({...d,moodEntries:d.moodEntries.filter(x=>x.id!==entry.id)}))}>删除</button></footer></article>)}{!data.moodEntries.length&&<Empty text="今天的心情，还没有落在纸上。" />}</div></section>}
     {showCategory&&<Modal title="新建特别日子分类" onClose={()=>setShowCategory(false)}><form className="editor-form" onSubmit={addCategory}><label>分类名称<input autoFocus value={categoryName} onChange={e=>setCategoryName(e.target.value)} placeholder="例如：宠物、家人或重要约会" required/></label><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowCategory(false)}>取消</button><button>建立分类</button></div></form></Modal>}
     {selectedCategory&&<Modal title={`${selectedCategory.icon} ${selectedCategory.name}`} onClose={()=>setSelectedCategory(null)}><div className="special-category-manager"><label className="special-category-edit">分类名称<input value={selectedCategory.name} onChange={e=>{const name=e.target.value;const oldName=selectedCategory.name;setSelectedCategory({...selectedCategory,name});patch((d:WorkbenchData)=>({...d,specialCategories:d.specialCategories.map(x=>x.id===selectedCategory.id?{...x,name,updatedAt:Date.now()}:x),specialDays:d.specialDays.map(x=>x.kind===oldName?{...x,kind:name,updatedAt:Date.now()}:x)}))}}/></label><form className="editor-form compact-special-form" onSubmit={saveSpecial}><label>名称<input value={specialForm.title} onChange={e=>setSpecialForm({...specialForm,title:e.target.value})} placeholder={`添加${selectedCategory.name}`} required/></label><div className="two-col"><label>重复方式<select value={specialForm.rule} onChange={e=>setSpecialForm({...specialForm,rule:e.target.value as typeof specialForm.rule})}><option value="fixed">固定日期</option><option value="weekly">每周几</option><option value="monthly">每月几号</option><option value="yearly">每年几月几号</option></select></label><label>提前提醒<input type="number" min="0" value={specialForm.reminderDays} onChange={e=>setSpecialForm({...specialForm,reminderDays:e.target.value})}/></label></div>
+      <section className="special-batch-import"><b>批量识别</b><p>支持“每周一：名称”“每月20号：名称”“每年9月18日：名称”或具体日期。</p><textarea value={batchText} onChange={e=>setBatchText(e.target.value)} placeholder="把一长段日期和名称粘贴到这里…"/><button type="button" onClick={importSpecialDays}>识别并添加</button>{batchStatus&&<small>{batchStatus}</small>}</section>
       {specialForm.rule==="fixed"&&<label>日期<input type="date" value={specialForm.date} onChange={e=>setSpecialForm({...specialForm,date:e.target.value})}/></label>}
       {specialForm.rule==="weekly"&&<label>星期<select value={specialForm.weekday} onChange={e=>setSpecialForm({...specialForm,weekday:e.target.value})}>{["日","一","二","三","四","五","六"].map((x,i)=><option value={i} key={x}>星期{x}</option>)}</select></label>}
       {specialForm.rule==="monthly"&&<label>每月几号<input type="number" min="1" max="31" value={specialForm.monthDay} onChange={e=>setSpecialForm({...specialForm,monthDay:e.target.value})}/></label>}
@@ -1098,11 +1127,11 @@ function Finance({ data, patch, initialTab="ledger" }:{data:WorkbenchData;patch:
   };
   const startVoiceEntry=()=>{
     const Recognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
-    if(!Recognition){setOcrStatus("当前浏览器暂不支持语音识别，可以继续使用文字或截图记账。");return}
-    const recognition=new Recognition();recognition.lang="zh-CN";recognition.interimResults=false;recognition.continuous=false;
+    if(!Recognition){setOcrStatus("Safari 暂不支持网页语音转写，请点输入框后使用 iPhone 键盘上的麦克风，说完即可填入文字。");document.querySelector<HTMLInputElement>(".quick-ledger input")?.focus();return}
+    const recognition=new Recognition();recognition.lang="zh-CN";recognition.interimResults=true;recognition.continuous=false;recognition.maxAlternatives=3;
     recognition.onstart=()=>setListening(true);recognition.onend=()=>setListening(false);
-    recognition.onerror=()=>{setListening(false);setOcrStatus("没有听清，请再说一次。")};
-    recognition.onresult=(event:any)=>{const text=String(event.results?.[0]?.[0]?.transcript||"");setQuick(text);setOcrStatus(parseEntry(text)?"已识别语音并记入账本。":"已转成文字，请补充金额后点击自动记账。")};
+    recognition.onerror=(event:any)=>{setListening(false);setOcrStatus(event?.error==="not-allowed"?"请在 Safari 设置中允许麦克风权限。":event?.error==="network"?"语音服务暂时无法联网，请使用键盘麦克风或文字记账。":"这次没有形成完整文字，已为你打开输入框，可继续用键盘麦克风补充。");document.querySelector<HTMLInputElement>(".quick-ledger input")?.focus()};
+    recognition.onresult=(event:any)=>{const text=Array.from(event.results||[]).map((result:any)=>result?.[0]?.transcript||"").join("").trim();if(!text)return;setQuick(text);const final=Array.from(event.results||[]).every((result:any)=>result.isFinal);if(final)setOcrStatus(parseEntry(text)?"已识别语音并记入账本。":"已转成文字，请补充金额后点击自动记账。")};
     recognition.start();
   };
   const readReceipt=async(e:ChangeEvent<HTMLInputElement>)=>{
@@ -1115,7 +1144,7 @@ function Finance({ data, patch, initialTab="ledger" }:{data:WorkbenchData;patch:
     }catch{setOcrStatus("这张图片暂时没有识别成功，请换一张更清晰的截图。")}
     e.target.value="";
   };
-  const addShopping=(e:FormEvent)=>{e.preventDefault();if(!shopForm.name.trim())return;patch(d=>({...d,shoppingItems:[...d.shoppingItems,{id:uid(),name:shopForm.name.trim(),price:Number(shopForm.price)||0,saved:0,purchased:false,updatedAt:Date.now()}]}));setShopForm({name:"",price:""})};
+  const addShopping=(e:FormEvent)=>{e.preventDefault();if(!shopForm.name.trim())return;const name=shopForm.name.trim(),price=Number(shopForm.price)||0,now=Date.now();patch(d=>({...d,shoppingItems:[...d.shoppingItems,{id:uid(),name,price,saved:0,purchased:false,updatedAt:now}],savingsGoals:[...d.savingsGoals,{id:uid(),name,target:price,saved:0,updatedAt:now}]}));setShopForm({name:"",price:""})};
   const addGoal=(e:FormEvent)=>{e.preventDefault();if(!goalForm.name.trim())return;patch(d=>({...d,savingsGoals:[...d.savingsGoals,{id:uid(),name:goalForm.name.trim(),target:Number(goalForm.target)||0,saved:Number(goalForm.saved)||0,updatedAt:Date.now()}]}));setGoalForm({name:"",target:"",saved:""})};
   const saveCategory=(e:FormEvent)=>{e.preventDefault();if(!categoryForm.name.trim())return;patch(d=>({...d,financeCategories:[...d.financeCategories,{id:uid(),...categoryForm,name:categoryForm.name.trim(),updatedAt:Date.now()}]}));setShowCategory(false);setCategoryForm({name:"",type:"expense",color:"#D48793"})};
   const remove=()=>{if(!deleteTarget)return;patch(d=>deleteTarget.kind==="entry"?{...d,financeEntries:d.financeEntries.filter(x=>x.id!==deleteTarget.id)}:deleteTarget.kind==="shop"?{...d,shoppingItems:d.shoppingItems.filter(x=>x.id!==deleteTarget.id)}:deleteTarget.kind==="goal"?{...d,savingsGoals:d.savingsGoals.filter(x=>x.id!==deleteTarget.id)}:{...d,financeCategories:d.financeCategories.filter(x=>x.id!==deleteTarget.id)});setDeleteTarget(null)};
@@ -1195,10 +1224,21 @@ function SpeakingPractice({text,language="en-US",translation=""}:{text:string;la
 
 const DAILY_BOOKS=[["《始于极限》","上野千鹤子、铃木凉美","女性"],["《置身事内》","兰小欢","商业"],["《芯片战争》","克里斯·米勒","人工智能"],["《随机漫步的傻瓜》","纳西姆·塔勒布","金融"],["《新闻的骚动》","阿兰·德波顿","新闻"],["《百年孤独》","加西亚·马尔克斯","小说"],["《我与地坛》","史铁生","读书"],["《女性贫困》","NHK特别节目录制组","女性"],["《聪明的投资者》","本杰明·格雷厄姆","金融"],["《创新者的窘境》","克莱顿·克里斯坦森","商业"],["《你当像鸟飞往你的山》","塔拉·韦斯特弗","女性"],["《克拉拉与太阳》","石黑一雄","人工智能"]];
 const DAILY_PODCASTS=[["随机波动","三位女性媒体人","女性"],["声东击西","徐涛","新闻"],["忽左忽右","程衍樑","新闻"],["跳岛FM","中信出版集团","读书"],["无人知晓","孟岩","金融"],["硅谷101","泓君","人工智能"],["晚点聊 LateTalk","晚点团队","商业"],["商业就是这样","第一财经","商业"],["The Daily","The New York Times","新闻"],["知行小酒馆","有知有行","金融"]];
-const FALLBACK_NEWS=["全球重要时事与公共议题","中国经济与消费新观察","人工智能产业最新进展","科技公司与产品动态","金融市场与投资者教育","商业公司与品牌趋势","女性与职场议题","文化出版与新书资讯","国际社会与城市生活","气候、健康与生活方式"].map((title,i)=>({title,source:["人民网","新华网","央视新闻","中国新闻网","澎湃新闻"][i%5],link:`https://www.baidu.com/s?tn=news&word=${encodeURIComponent(title)}`,publishedAt:todayKey(),category:["新闻","商业","人工智能","科技","金融"][i%5]}));
+const FALLBACK_NEWS=[
+  {title:"稳中提质 韧性增强——透视上半年消费外贸外资走势",summary:"消费市场扩容提质，外贸创新发展加快，吸引外资质量继续提升。",source:"新华网",link:"https://www.news.cn/20260723/d03d07fe1d054cb4b3f5fc929ad641d0/c.html",publishedAt:"2026-07-23",category:"商业"},
+  {title:"中国制造加速涌现“新”力量",summary:"上半年工业和信息化领域呈现新技术、新成果与新动能，多项先进制造取得进展。",source:"新华网",link:"https://www.news.cn/20260720/86639bcfb6b849bcab3561c9850195d7/c.html",publishedAt:"2026-07-20",category:"科技"},
+  {title:"2026上半年中国经济展现强大韧性与活力",summary:"上半年国内生产总值同比增长4.7%，装备制造、高技术制造和进出口保持增长。",source:"新华网",link:"https://www.news.cn/20260715/249f48c52fa1424093bcea95a3383fa6/c.html",publishedAt:"2026-07-15",category:"经济"},
+  {title:"全国夏粮产量首次突破3000亿斤",summary:"全国夏粮总产量达到3014.9亿斤，在多重天气影响下实现丰收。",source:"新华网",link:"https://www.news.cn/20260710/2df24b2da5b34ac7aafd2b2a3987cdcc/c.html",publishedAt:"2026-07-10",category:"民生"},
+  {title:"2026年全国暑期文化和旅游消费季启动",summary:"各地将推出超3万场文旅活动和多项惠民措施，覆盖避暑、夜游、研学与非遗美食。",source:"新华网",link:"https://www.news.cn/culture/20260709/09575bd83280422788d151b8094f7720/c.html",publishedAt:"2026-07-09",category:"文化"},
+  {title:"可再生能源消费政策将于8月实施",summary:"新政策推动可再生能源消费和绿色电力使用，助力能源结构继续转型。",source:"新华网",link:"https://www.news.cn/energy/20260626/849ed86b65c2444bb0a8d18dcac6455e/c.html",publishedAt:"2026-06-26",category:"能源"},
+  {title:"我国成功发射实践三十一号卫星",summary:"长征三号乙运载火箭将卫星送入预定轨道，卫星主要用于空间环境探测。",source:"新华网",link:"https://www.news.cn/20260616/a719807f90ce46a99d5649fba5cadb43/c.html",publishedAt:"2026-06-16",category:"航天"},
+  {title:"我国将迎来第22个中国航海日",summary:"今年航海日以数智赋能为主题，将举办论坛、航行安全治理对话等活动。",source:"新华网",link:"https://www.news.cn/politics/20260630/b99f997bc274439eb7a3cebbb75c0ec2/c.html",publishedAt:"2026-06-30",category:"社会"},
+  {title:"铁路暑运启动 预计发送旅客10.1亿人次",summary:"铁路部门将根据暑期客流变化动态增加运力，并持续优化出行服务。",source:"新华网",link:"https://www.news.cn/government/20260701/9bc5e1e5d4b848a19fec99f73bb30a87/c.html",publishedAt:"2026-07-01",category:"出行"},
+  {title:"国际油价波动牵动全球能源市场",summary:"国际能源市场受供需和地缘因素影响，市场关注价格对消费与产业链的传导。",source:"新华网",link:"https://www.news.cn/world/20260708/b37e19c96b064451abd32bd8a5760930/c.html",publishedAt:"2026-07-08",category:"国际"}
+];
 
 function MediaCategoryManager({title,items,draft,setDraft,onAdd,onRename,onDelete}:{title:string;items:MoodTag[];draft:string;setDraft:(value:string)=>void;onAdd:()=>void;onRename:(id:string,name:string)=>void;onDelete:(id:string)=>void}){
-  return <section className="media-category-manager"><div><b>{title}</b><small>可新增、修改或删除</small></div><form onSubmit={e=>{e.preventDefault();onAdd()}}><input value={draft} onChange={e=>setDraft(e.target.value)} placeholder="新建分类"/><button>＋</button></form><div>{items.map(item=><label key={item.id}><input value={item.name} onChange={e=>onRename(item.id,e.target.value)}/><button type="button" onClick={()=>onDelete(item.id)}>×</button></label>)}</div></section>
+  return <section className="media-category-manager"><div><b>{title}</b></div><form onSubmit={e=>{e.preventDefault();onAdd()}}><input value={draft} onChange={e=>setDraft(e.target.value)} placeholder="新建分类"/><button>＋</button></form><div>{items.map(item=><label key={item.id}><input value={item.name} onChange={e=>onRename(item.id,e.target.value)}/><button type="button" onClick={()=>onDelete(item.id)}>×</button></label>)}</div></section>
 }
 
 function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch: (fn:(d:WorkbenchData)=>WorkbenchData)=>void; initialTab?:"path"|"learn"|"goals"|"jobs" }) {
@@ -1212,11 +1252,19 @@ function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch
   const [detailSkill,setDetailSkill]=useState<Skill|null>(null);
   const [lesson,setLesson]=useState<{skill:Skill;topic:string}|null>(null);
   const [news,setNews]=useState(FALLBACK_NEWS);
-  const [bookForm,setBookForm]=useState({title:"",author:"",category:"读书",currentPage:"",totalPages:"",status:"在读" as ReadingBook["status"]});
-  const [podcastForm,setPodcastForm]=useState({title:"",host:"",category:"读书",currentEpisode:""});
+  const [bookForm,setBookForm]=useState({title:"",author:"",category:"文学",currentPage:"",totalPages:"",status:"在读" as ReadingBook["status"]});
+  const [podcastForm,setPodcastForm]=useState({title:"",host:"",category:"情感",currentEpisode:""});
   const [bookCategoryDraft,setBookCategoryDraft]=useState("");
   const [podcastCategoryDraft,setPodcastCategoryDraft]=useState("");
   const today=todayKey();
+  useEffect(()=>{
+    if(tab!=="news")return;
+    fetch("https://60s.viki.moe/v2/60s").then(response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>{
+      const payload=result?.data||{};const items=Array.isArray(payload.news)?payload.news:[];
+      if(items.length<10)return;
+      setNews(items.slice(0,10).map((value:unknown,index:number)=>{const summary=String(value).replace(/^\d+[.、]\s*/,"");const title=summary.split(/[：:；;]/)[0].slice(0,34)||summary.slice(0,34);return {title,summary,source:"每日新闻公开源",link:payload.link||"https://60s.viki.moe/v2/60s",publishedAt:payload.date||todayKey(),category:["国内","社会","财经","科技","国际"][index%5]}}));
+    }).catch(()=>setNews(FALLBACK_NEWS));
+  },[tab,today]);
   const checked=(trackId:string)=>data.checkins.some(c=>c.trackId===trackId&&c.date===today);
   const toggleTrack=(trackId:string)=>{
     patch(d=>{
@@ -1279,7 +1327,7 @@ function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch
       <form className="goal-form" onSubmit={addGoal}><select value={goalKind} onChange={e=>setGoalKind(e.target.value as Goal["kind"])}><option>证书</option><option>技能</option></select><input value={goalText} onChange={e=>setGoalText(e.target.value)} placeholder="添加一个长期目标…" /><button>＋ 添加目标</button></form>
       <div className="goal-columns">{(["证书","技能"] as Goal["kind"][]).map(kind=><section className="goal-column" key={kind}><header><i>{kind==="证书"?"♢":"✦"}</i><div><h3>{kind==="证书"?"想考取的证":"想拓展的技能"}</h3><small>{data.goals.filter(g=>g.kind===kind&&g.done).length}/{data.goals.filter(g=>g.kind===kind).length} 完成</small></div></header>{data.goals.filter(g=>g.kind===kind).map(goal=><div className="goal-row" key={goal.id}><label><input type="checkbox" checked={goal.done} onChange={()=>patch(d=>({...d,goals:d.goals.map(g=>g.id===goal.id?{...g,done:!g.done,updatedAt:Date.now()}:g)}))}/><i></i></label><input className={goal.done?"strike":""} value={goal.text} onChange={e=>patch(d=>({...d,goals:d.goals.map(g=>g.id===goal.id?{...g,text:e.target.value,updatedAt:Date.now()}:g)}))}/><button onClick={()=>setDeleteGoal(goal.id)}>×</button></div>)}{!data.goals.some(g=>g.kind===kind)&&<p className="goal-empty">还没有写下目标</p>}</section>)}</div>
     </section>}
-    {tab==="news"&&<section className="growth-feed"><div className="growth-section-head"><div><span className="eyebrow">DAILY NEWS · {displayDate(today)}</span><h2>今日 10 条新闻资讯</h2></div><p>优先读取当天公开资讯，点击标题查看原文。</p></div><div className="news-list">{news.slice(0,10).map((item,i)=><a href={item.link} target="_blank" rel="noreferrer" key={`${item.title}-${i}`}><b>{pad(i+1)}</b><div><span>{item.category} · {item.source}</span><h3>{item.title}</h3><small>{String(item.publishedAt).slice(0,16)}</small></div><i>↗</i></a>)}</div></section>}
+    {tab==="news"&&<section className="growth-feed"><div className="growth-section-head"><div><span className="eyebrow">DAILY NEWS · {displayDate(today)}</span><h2>今日 10 条新闻资讯</h2></div><p>精选国内公开来源，点击标题查看原文。</p></div><div className="news-list">{news.slice(0,10).map((item,i)=><a href={item.link} target="_blank" rel="noreferrer" key={`${item.title}-${i}`}><b>{pad(i+1)}</b><div><span>{item.category} · {item.source}</span><h3>{item.title}</h3><p>{item.summary}</p><small>{String(item.publishedAt).slice(0,16)}</small></div><i>↗</i></a>)}</div></section>}
     {tab==="books"&&<section className="growth-feed"><div className="growth-section-head"><div><span className="eyebrow">DAILY READING</span><h2>今天的阅读推荐</h2></div></div><div className="recommend-grid">{Array.from({length:6},(_,i)=>DAILY_BOOKS[(dailyIndex(today,DAILY_BOOKS.length)+i)%DAILY_BOOKS.length]).map(x=><article key={x[0]}><span>{x[2]}</span><h3>{x[0]}</h3><p>{x[1]}</p><a target="_blank" rel="noreferrer" href={`https://book.douban.com/subject_search?search_text=${encodeURIComponent(x[0])}`}>查看图书 ↗</a></article>)}</div><div className="library-panel"><h2>我的书架</h2><form className="media-add-form" onSubmit={e=>{e.preventDefault();if(!bookForm.title.trim())return;patch(d=>({...d,readingBooks:[...d.readingBooks,{id:uid(),title:bookForm.title.trim(),author:bookForm.author.trim(),category:bookForm.category,currentPage:Number(bookForm.currentPage)||0,totalPages:Number(bookForm.totalPages)||0,status:bookForm.status,updatedAt:Date.now()}]}));setBookForm({...bookForm,title:"",author:"",currentPage:"",totalPages:""})}}><input value={bookForm.title} onChange={e=>setBookForm({...bookForm,title:e.target.value})} placeholder="书名"/><input value={bookForm.author} onChange={e=>setBookForm({...bookForm,author:e.target.value})} placeholder="作者"/><select value={bookForm.category} onChange={e=>setBookForm({...bookForm,category:e.target.value})}>{data.bookCategories.map((x:MoodTag)=><option key={x.id}>{x.name}</option>)}</select><input type="number" min="0" value={bookForm.currentPage} onChange={e=>setBookForm({...bookForm,currentPage:e.target.value})} placeholder="已读页"/><input type="number" min="0" value={bookForm.totalPages} onChange={e=>setBookForm({...bookForm,totalPages:e.target.value})} placeholder="总页数"/><button>添加</button></form><div className="personal-media-list">{data.readingBooks.map(item=><article key={item.id}><input value={item.title} onChange={e=>patch(d=>({...d,readingBooks:d.readingBooks.map(x=>x.id===item.id?{...x,title:e.target.value,updatedAt:Date.now()}:x)}))}/><input value={item.author} onChange={e=>patch(d=>({...d,readingBooks:d.readingBooks.map(x=>x.id===item.id?{...x,author:e.target.value,updatedAt:Date.now()}:x)}))}/><label><input type="number" min="0" value={item.currentPage} onChange={e=>patch(d=>({...d,readingBooks:d.readingBooks.map(x=>x.id===item.id?{...x,currentPage:Number(e.target.value),updatedAt:Date.now()}:x)}))}/><span>/ {item.totalPages||"?"} 页 · {item.totalPages?Math.min(100,Math.round(item.currentPage/item.totalPages*100)):0}%</span></label><select value={item.status} onChange={e=>patch(d=>({...d,readingBooks:d.readingBooks.map(x=>x.id===item.id?{...x,status:e.target.value as ReadingBook["status"],updatedAt:Date.now()}:x)}))}><option>想读</option><option>在读</option><option>读完</option></select><button onClick={()=>patch(d=>({...d,readingBooks:d.readingBooks.filter(x=>x.id!==item.id)}))}>删除</button></article>)}</div></div></section>}
     {tab==="podcasts"&&<section className="growth-feed"><div className="growth-section-head"><div><span className="eyebrow">DAILY PODCASTS</span><h2>今天的播客推荐</h2></div></div><div className="recommend-grid podcast-grid">{Array.from({length:6},(_,i)=>DAILY_PODCASTS[(dailyIndex(today,DAILY_PODCASTS.length)+i)%DAILY_PODCASTS.length]).map(x=><article key={x[0]}><span>{x[2]}</span><h3>{x[0]}</h3><p>{x[1]}</p><a target="_blank" rel="noreferrer" href={`https://www.xiaoyuzhoufm.com/search?q=${encodeURIComponent(x[0])}`}>查找播客 ↗</a></article>)}</div><div className="library-panel"><h2>我的播客</h2><form className="media-add-form podcast" onSubmit={e=>{e.preventDefault();if(!podcastForm.title.trim())return;patch(d=>({...d,savedPodcasts:[...d.savedPodcasts,{id:uid(),title:podcastForm.title.trim(),host:podcastForm.host.trim(),category:podcastForm.category,currentEpisode:Number(podcastForm.currentEpisode)||0,updatedAt:Date.now()}]}));setPodcastForm({...podcastForm,title:"",host:"",currentEpisode:""})}}><input value={podcastForm.title} onChange={e=>setPodcastForm({...podcastForm,title:e.target.value})} placeholder="播客名称"/><input value={podcastForm.host} onChange={e=>setPodcastForm({...podcastForm,host:e.target.value})} placeholder="主播"/><select value={podcastForm.category} onChange={e=>setPodcastForm({...podcastForm,category:e.target.value})}>{data.podcastCategories.map((x:MoodTag)=><option key={x.id}>{x.name}</option>)}</select><input type="number" min="0" value={podcastForm.currentEpisode} onChange={e=>setPodcastForm({...podcastForm,currentEpisode:e.target.value})} placeholder="听到第几期"/><button>添加</button></form><div className="personal-media-list podcast">{data.savedPodcasts.map(item=><article key={item.id}><input value={item.title} onChange={e=>patch(d=>({...d,savedPodcasts:d.savedPodcasts.map(x=>x.id===item.id?{...x,title:e.target.value,updatedAt:Date.now()}:x)}))}/><input value={item.host} onChange={e=>patch(d=>({...d,savedPodcasts:d.savedPodcasts.map(x=>x.id===item.id?{...x,host:e.target.value,updatedAt:Date.now()}:x)}))}/><label><input type="number" min="0" value={item.currentEpisode} onChange={e=>patch(d=>({...d,savedPodcasts:d.savedPodcasts.map(x=>x.id===item.id?{...x,currentEpisode:Number(e.target.value),updatedAt:Date.now()}:x)}))}/><span>第 {item.currentEpisode} 期</span></label><button onClick={()=>patch(d=>({...d,savedPodcasts:d.savedPodcasts.filter(x=>x.id!==item.id)}))}>删除</button></article>)}</div></div></section>}
     {deleteGoal&&<Modal title="删除这个长期目标吗？" onClose={()=>setDeleteGoal(null)}><p className="modal-copy">这条目标会从清单中移除，小熊再帮你确认一次。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteGoal(null)}>先保留</button><button className="danger" onClick={()=>{patch(d=>({...d,goals:d.goals.filter(g=>g.id!==deleteGoal)}));setDeleteGoal(null)}}>确认删除</button></div></Modal>}
@@ -1334,18 +1382,13 @@ function Jobs({data,patch,embedded=false}:{data:WorkbenchData;patch:(fn:(d:Workb
   };
   const setJobStatus=(id:string,next:JobStatus)=>patch(d=>({...d,jobs:d.jobs.map(j=>j.id===id?{...j,status:next,statusUpdatedAt:Date.now(),updatedAt:Date.now()}:j)}));
   return <div className={`jobs-page ${embedded?"embedded":""}`}>
-    <section className="jobs-hero">
-      <div><span className="eyebrow">CAREER OPPORTUNITIES</span><h1>去遇见更适合你的机会</h1><p>按照你自己设置的条件筛选，所有追踪状态仅保存在本机。</p></div>
-      <img src="/bears/v2/bear-work.png" alt="使用电脑工作的水彩小熊" />
-      <div className="job-match"><i>✦</i><div><b>{filtered.length} 个匹配岗位</b><small>按你的期望自动筛选</small></div></div>
+    <section className="job-source-note featured">
+      <div><span className="eyebrow">PUBLIC JOB SOURCES</span><h2>公开岗位入口</h2><p>岗位可能随时下线，公司规模与薪资请在投递前再次核验。</p></div>
+      <div><a href="https://m.zhipin.com/zhaopin/ca858bd04f5d99261HV-09m5GQ~~/" target="_blank" rel="noreferrer">查看 BOSS 公开搜索</a><a className="secondary" href="https://mwenku.51job.com/hangzhou_jobs/202601/Python/" target="_blank" rel="noreferrer">查看前程无忧公开页</a></div>
     </section>
     <div className="growth-tabs jobs-tabs">
       {(["全部",...statuses] as const).map(s=><button key={s} className={status===s?"active":""} onClick={()=>setStatus(s)}>{s}<small>{s==="全部"?data.jobs.length:data.jobs.filter(j=>j.status===s).length}</small></button>)}
     </div>
-    <section className="job-source-note">
-      <div><span className="eyebrow">PUBLIC JOB SOURCES</span><h2>公开岗位入口</h2><p>无需关联账号。岗位可能随时下线，公司规模与薪资请在投递前再次核验。</p></div>
-      <div><a href="https://m.zhipin.com/zhaopin/ca858bd04f5d99261HV-09m5GQ~~/" target="_blank" rel="noreferrer">查看 BOSS 公开搜索</a><a className="secondary" href="https://mwenku.51job.com/hangzhou_jobs/202601/Python/" target="_blank" rel="noreferrer">查看前程无忧公开页</a></div>
-    </section>
     <div className="job-toolbar">
       <label><span>⌕</span><input value={keyword} onChange={e=>setKeyword(e.target.value)} placeholder="在筛选结果中继续搜索…"/></label>
       <button onClick={()=>setShowAdd(true)}>＋ 录入岗位</button>

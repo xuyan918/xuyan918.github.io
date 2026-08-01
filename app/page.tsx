@@ -865,7 +865,7 @@ function Dashboard({ data, go, goSection, openCat, toggleTodo, patch }: { data: 
   const healthTip=`${weatherLead}${phaseTip}`;
   const hour=d.getHours();
   const timeGreeting=hour>=5&&hour<11?"早上好":hour>=11&&hour<14?"中午好":hour>=14&&hour<18?"下午好":"晚上好";
-  const warmLines={lateNight:["夜已经很深了，先把今天轻轻放下吧","困意来敲门时，就安心去拥抱一场好梦","剩下的事交给明天，现在该好好休息了"],morning:["晨光正好，愿你带着轻盈的心情出发","新的一天正在展开，也别忘了温柔照顾自己","慢慢醒来，今天依然有许多小美好等着你"],noon:["让午餐和片刻休息，为下午悄悄蓄满能量","忙碌暂停一会儿，好好吃饭也是重要的小事","愿这一顿热乎的午餐，安放上午所有的辛苦"],afternoon:["喝口水、伸伸肩，你依然在稳稳向前","午后的光很温柔，按自己的节奏继续就好","已经走过大半天啦，剩下的事情也慢慢来"],evening:["今天也辛苦了，接下来的时间留给放松吧","暮色落下来，愿你把疲惫一点点卸下","把今天认真收好，也给自己一个温柔的拥抱"]};
+  const warmLines={lateNight:["夜深了，早点休息吧","把今天轻轻放下吧","安心睡个好觉吧"],morning:["愿今天轻盈明亮","带着好心情出发","今天也元气满满"],noon:["好好吃饭，稍作休息","午间歇一歇吧","为下午蓄满能量"],afternoon:["喝口水，慢慢向前","按自己的节奏来","今天依然闪闪发光"],evening:["今天辛苦了，放松吧","把疲惫轻轻放下","今晚好好照顾自己"]};
   const warmPeriod=hour>=1&&hour<5?"lateNight":hour>=5&&hour<11?"morning":hour>=11&&hour<14?"noon":hour>=14&&hour<18?"afternoon":"evening";
   const warmLine=warmLines[warmPeriod][dailyIndex(today,warmLines[warmPeriod].length)];
   const addTodo=(e:FormEvent)=>{e.preventDefault();if(!todoText.trim())return;patch(x=>({...x,todos:[...x.todos,{id:uid(),date:today,text:todoText.trim(),done:false,order:todays.length,updatedAt:Date.now()}]}));setTodoText("")};

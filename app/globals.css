@@ -143,7 +143,9 @@
 .photoshop-practice img{width:120px;aspect-ratio:1;object-fit:contain;border-radius:12px;background:#f8e9e7}
 .photoshop-practice figcaption{font-size:11px;line-height:1.7;color:#806b67}
 .quick-ledger.enhanced{grid-template-columns:auto minmax(180px,1fr) auto}
+.fitness-history-nav{display:grid;grid-template-columns:auto auto 1fr auto auto;align-items:center;gap:8px;margin:-3px 0 14px;padding:10px 12px;border:1px solid #eadeda;border-radius:15px;background:#fffdfa}.fitness-history-nav button{border:0;border-radius:9px;padding:8px 10px;background:#f2e2e1;color:#9f5e68;font-size:9px}.fitness-history-nav button:disabled{opacity:.45}.fitness-history-nav label{display:flex;align-items:center;gap:6px;font-size:8px;color:#927b77}.fitness-history-nav input{border:1px solid #e4d4d0;border-radius:8px;padding:7px;background:#fff;color:#735e5a;font-size:9px}.fitness-history-nav>b{text-align:center;font:14px Georgia,"Songti SC",serif;color:#755e5a}.week-plan.multi-day>article>header>span small{display:block;margin-top:4px;font:8px system-ui;color:#aa8f8b}.workout-item input[readonly],.workout-item select:disabled{opacity:.78;cursor:default}
 @media(max-width:560px){.photoshop-practice{grid-template-columns:88px 1fr}.photoshop-practice img{width:88px}}
+@media(max-width:700px){.fitness-history-nav{grid-template-columns:1fr 1fr}.fitness-history-nav>b{grid-column:span 2;grid-row:1}.fitness-history-nav label{grid-column:span 2}.fitness-history-nav button{width:100%}}
 
 /* Keep backup tools reachable on every phone layout. */
 .sidebar{overflow-y:auto;overscroll-behavior:contain}.mobile-data-button{display:none}.mobile-data-panel{display:grid;gap:10px}.mobile-data-panel p{margin:0 0 4px;color:#806b67;font-size:12px;line-height:1.75}.mobile-data-panel button{border:0;border-radius:11px;background:#c87684;color:#fff;padding:11px 14px;font-size:12px;font-weight:700}.mobile-data-panel small{color:#9b8581;font-size:9px;line-height:1.6}

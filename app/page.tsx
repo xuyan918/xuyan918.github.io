@@ -1,7 +1,10 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { EXTRA_LOCATION_ROWS } from "./location-options";
+import { agentDeepDiveForDay, agentLesson, agentResourcesForDay } from "./skill-content";
+import { CARE_ADVICE_POOLS, DAILY_RECIPE_POOL, MORE_DAILY_LESSONS } from "./daily-content";
+import { careerLesson, careerResources } from "./career-content";
 
 type View = "home" | "calendar" | "growth" | "health" | "finance" | "jobs" | "travel" | "memos" | "cats";
 type Category = { id: string; name: string; color: string };
@@ -16,7 +19,7 @@ type Goal = { id: string; kind: string; text: string; done: boolean; updatedAt: 
 type PeriodRecord = { id: string; start: string; end: string; updatedAt: number };
 type WorkoutPlan = { id: string; weekStart?:string; weekday: number; title: string; intensity: "轻柔" | "适中" | "较高"; order?:number; completedDates?:string[]; updatedAt: number };
 type HealthLog = { id: string; date: string; weight?: number; trained: boolean; workout?: string; foodNote: string; foodImage?:string; calories?: number; updatedAt: number };
-type Recipe = { id: string; meal: "早餐" | "午餐" | "晚餐"; name: string; ingredients: string; calories: number; custom?: boolean; updatedAt: number };
+type Recipe = { id: string; meal: "早餐" | "午餐" | "晚餐"; name: string; ingredients: string; calories: number; method?:string; custom?: boolean; updatedAt: number };
 type HealthSettings = { privacy: boolean; cycleLength: number; periodLength: number; country?:string; admin1?:string; city?:string; latitude?:number; longitude?:number; timezone?:string; updatedAt: number };
 type FinanceCategory = { id:string; type:"income"|"expense"; name:string; color:string; updatedAt:number };
 type FinanceEntry = { id:string; type:"income"|"expense"; categoryId:string; amount:number; note:string; date:string; time:string; updatedAt:number };
@@ -86,9 +89,13 @@ type WorkbenchData = {
 
 const STORAGE_KEY = "bear-workbench-v1";
 const BACKUP_KEY = "bear-workbench-history-v1";
+const PROMO_BACKUP_KEY = "bear-workbench-promos-v1";
 type BackupSnapshot={id:string;createdAt:number;reason:string;raw:string};
 const readSnapshots=():BackupSnapshot[]=>{try{const value=JSON.parse(localStorage.getItem(BACKUP_KEY)||"[]");return Array.isArray(value)?value:[]}catch{return []}};
-const saveSnapshot=(raw:string,reason:string,force=false)=>{if(!raw)return;try{JSON.parse(raw)}catch{return}const snapshots=readSnapshots();if(snapshots[0]?.raw===raw)return;if(!force&&snapshots[0]&&Date.now()-snapshots[0].createdAt<120000)return;const next=[{id:uid(),createdAt:Date.now(),reason,raw},...snapshots].slice(0,15);try{localStorage.setItem(BACKUP_KEY,JSON.stringify(next))}catch{try{localStorage.setItem(BACKUP_KEY,JSON.stringify(next.slice(0,3)))}catch{}}};
+const saveSnapshot=(raw:string,reason:string,force=false)=>{if(!raw)return;try{JSON.parse(raw)}catch{return}const snapshots=readSnapshots();if(snapshots[0]?.raw===raw)return;if(!force&&snapshots[0]&&Date.now()-snapshots[0].createdAt<120000)return;const keep=raw.length>350000?2:5;const next=[{id:uid(),createdAt:Date.now(),reason,raw},...snapshots].slice(0,keep);try{localStorage.setItem(BACKUP_KEY,JSON.stringify(next))}catch{try{localStorage.setItem(BACKUP_KEY,JSON.stringify(next.slice(0,1)))}catch{}}};
+const readPromoBackup=():SpecialDay[]=>{try{const value=JSON.parse(localStorage.getItem(PROMO_BACKUP_KEY)||"[]");return Array.isArray(value)?value:[]}catch{return []}};
+const mergePromoBackup=(items:SpecialDay[])=>{const map=new Map(items.map(item=>[item.id,item]));readPromoBackup().forEach(item=>{const old=map.get(item.id);if(!old||item.updatedAt>old.updatedAt)map.set(item.id,item)});return [...map.values()]};
+const savePromoBackup=(items:SpecialDay[])=>{const promos=items.filter(item=>item.id.startsWith("promo-")||item.kind==="商家优惠活动");try{localStorage.setItem(PROMO_BACKUP_KEY,JSON.stringify(promos))}catch{}};
 const dataModifiedAt=(data:any)=>{if(Number.isFinite(data?.modifiedAt))return data.modifiedAt as number;let latest=0;Object.values(data||{}).forEach(value=>{if(Array.isArray(value))value.forEach(item=>{if(Number.isFinite(item?.updatedAt))latest=Math.max(latest,item.updatedAt);if(Number.isFinite(item?.createdAt))latest=Math.max(latest,item.createdAt)})});return latest};
 const SALARY_CLEANUP_KEY = "bear-workbench-salary-cleaned-20260729";
 const GROWTH_CLEANUP_KEY = "bear-workbench-growth-cleaned-20260731";
@@ -228,6 +235,7 @@ const EXTRA_TRACK_DAILIES:Record<string,{items:string[];material:string}[]>={
   ]
 };
 Object.entries(EXTRA_TRACK_DAILIES).forEach(([id,sets])=>TRACK_DAILIES[id]?.push(...sets));
+Object.entries(MORE_DAILY_LESSONS).forEach(([id,sets])=>TRACK_DAILIES[id]?.push(...sets));
 const TRACK_RESOURCES:Record<string,{label:string;url:string}[]>={
   law:[{label:"中国法律服务网",url:"https://www.12348.gov.cn/"},{label:"B站 · 法律常识案例",url:"https://search.bilibili.com/all?keyword=%E6%B3%95%E5%BE%8B%E5%B8%B8%E8%AF%86%20%E6%A1%88%E4%BE%8B"}],
   "finance-study":[{label:"中国投资者网",url:"https://www.investor.org.cn/"},{label:"上交所投资者教育",url:"https://edu.sse.com.cn/"},{label:"B站 · 股票基金基础",url:"https://search.bilibili.com/all?keyword=%E8%82%A1%E7%A5%A8%20%E5%9F%BA%E9%87%91%20%E5%85%A5%E9%97%A8"}],
@@ -257,21 +265,11 @@ const WORD_TRANSLATIONS:Record<string,string>={
   diverse:"这座城市拥有多元化的人口。",efficient:"公共交通是一种高效的选择。",emerge:"随着时间推移，新的挑战可能出现。",impact:"旅游业对当地文化有重大影响。",indicate:"这些数据表明增长保持稳定。",motivate:"小目标能够激励学习者。",preserve:"我们应该保护历史建筑。",relevant:"只加入相关信息。",transform:"科技可以改变工作场所。",widespread:"智能手机的使用如今十分普遍。"
 };
 const lessonFor=(skill:Skill,topic:string)=>{
-  const detail=SKILL_DETAILS[skill.id];
-  const examples:Record<string,string>={
-    agent:"例如：一个待办 Agent 先读取今日任务，再调用日历工具查找空闲时间，最后生成计划；涉及删除或发送时必须等待人工确认。",
-    html:"例如：用 <nav> 表示导航、<main> 表示主体、<button> 承担点击动作，而不是全部使用无语义的 div。",
-    xpath:"例如：//button[contains(normalize-space(),'保存')] 会寻找文字含“保存”的按钮；比依赖页面中的第几个按钮更稳定。",
-    python:"例如：把读取文件、清洗数据和保存结果拆成三个函数，并用 try/except 捕获可预期错误。",
-    mysql:"例如：订单表通过 user_id 关联用户表；查询前先明确“一行代表什么”，再决定 JOIN 与聚合方式。",
-    api:"例如：GET 用于读取，POST 常用于创建；遇到 429 应等待后重试，不能无间隔反复请求。",
-    prompt:"例如：把“帮我总结”改成“用三条要点总结，每条不超过 30 字，并列出一个待确认问题”。",
-    workflow:"例如：付款流程应包含待处理、成功、失败和人工复核状态；重复回调不能造成二次扣款。",
-    bi:"例如：分析月度支出时，金额是指标，月份和类别是维度；折线图适合趋势，条形图适合类别比较。",
-    warehouse:"例如：销售事实表记录订单明细，日期、商品和客户作为维度；所有分析必须尊重事实表粒度。",
-    linux:"例如：`tail -f app.log` 持续查看日志，`grep ERROR app.log` 筛选错误；修改权限前先理解读、写、执行含义。"
-  };
-  return {title:`${skill.name} · ${topic}`,definition:`“${topic}”是 ${skill.name} 学习路径中的关键部分。${detail?.intro||""}`,explanation:`学习时不要只记术语：先弄清它解决什么问题、输入和输出是什么、失败时会怎样，再把它放进真实任务中验证。${detail?.steps?.join("；")||""}。`,example:examples[skill.id]||"把这个知识点放入一个真实的小任务中，记录你的假设、操作步骤、结果和需要改进的地方。",practice:detail?.practice||[]};
+  const agentContent=skill.id==="agent"?agentLesson(topic):undefined;
+  if(agentContent)return {title:`${skill.name} · ${topic}`,definition:agentContent.definition,explanation:agentContent.plain,example:agentContent.example,practice:agentContent.practice,resources:agentContent.resources};
+  const level=skill.advanced.includes(topic)?"advanced":skill.beginner.includes(topic)?"beginner":"knowledge";
+  const content=careerLesson(skill.id,skill.name,topic,level);
+  return {title:`${skill.name} · ${topic}`,definition:content.definition,explanation:content.plain,example:content.example,practice:content.practice,resources:content.resources};
 };
 const SKILL_LINKS:Record<string,{label:string;url:string}[]> = {
   agent:[{label:"B站：AI Agent 入门",url:"https://search.bilibili.com/all?keyword=AI%20Agent%20%E5%85%A5%E9%97%A8"}],html:[{label:"菜鸟教程：HTML",url:"https://www.runoob.com/html/html-tutorial.html"}],xpath:[{label:"B站：XPath 实战",url:"https://search.bilibili.com/all?keyword=XPath%20%E5%AE%9E%E6%88%98"}],python:[{label:"菜鸟教程：Python",url:"https://www.runoob.com/python3/python3-tutorial.html"}],mysql:[{label:"菜鸟教程：MySQL",url:"https://www.runoob.com/mysql/mysql-tutorial.html"}],api:[{label:"B站：HTTP 与 API",url:"https://search.bilibili.com/all?keyword=HTTP%20API%20%E5%85%A5%E9%97%A8"}],prompt:[{label:"B站：提示词工程",url:"https://search.bilibili.com/all?keyword=%E6%8F%90%E7%A4%BA%E8%AF%8D%E5%B7%A5%E7%A8%8B"}],workflow:[{label:"B站：工作流自动化",url:"https://search.bilibili.com/all?keyword=%E5%B7%A5%E4%BD%9C%E6%B5%81%E8%87%AA%E5%8A%A8%E5%8C%96"}],bi:[{label:"B站：Power BI 入门",url:"https://search.bilibili.com/all?keyword=Power%20BI%20%E5%85%A5%E9%97%A8"}],warehouse:[{label:"阿里云：数据仓库基础",url:"https://developer.aliyun.com/article/740387"}],linux:[{label:"菜鸟教程：Linux",url:"https://www.runoob.com/linux/linux-tutorial.html"}],expression:[{label:"B站：高情商沟通与拒绝",url:"https://search.bilibili.com/all?keyword=%E9%AB%98%E6%83%85%E5%95%86%20%E6%B2%9F%E9%80%9A%20%E6%8B%92%E7%BB%9D"},{label:"B站：职场向上管理",url:"https://search.bilibili.com/all?keyword=%E8%81%8C%E5%9C%BA%20%E5%90%91%E4%B8%8A%E7%AE%A1%E7%90%86"}]
@@ -645,7 +643,7 @@ function useWorkbench() {
             return {...track,subtitle:""};
           })
           .sort((a:LearningTrack,b:LearningTrack)=>trackOrder.indexOf(a.id)-trackOrder.indexOf(b.id));
-        const normalizedSpecialDays=withKnownSpecials(Array.isArray(parsed.specialDays)?parsed.specialDays:travelDefaults.specialDays).filter((item:SpecialDay)=>!shouldCleanBirthdays||item.kind!=="生日"||!["我的生日","妈妈的生日","爸爸的生日"].includes(item.title));
+        const normalizedSpecialDays=mergePromoBackup(withKnownSpecials(Array.isArray(parsed.specialDays)?parsed.specialDays:travelDefaults.specialDays)).filter((item:SpecialDay)=>!shouldCleanBirthdays||item.kind!=="生日"||!["我的生日","妈妈的生日","爸爸的生日"].includes(item.title));
         setData({
           ...parsed,
           modifiedAt:parsed.modifiedAt||dataModifiedAt(parsed)||Date.now(),
@@ -693,9 +691,11 @@ function useWorkbench() {
   useEffect(() => {
     if (!data)return;
     const current=localStorage.getItem(STORAGE_KEY);
-    if(current){try{const stored=JSON.parse(current);if(dataModifiedAt(stored)>dataModifiedAt(data)){setData(stored);return}}catch{}const next=JSON.stringify(data);if(current!==next){saveSnapshot(current,"修改前自动保护");localStorage.setItem(STORAGE_KEY,next)}}else localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+    savePromoBackup(data.specialDays);
+    const next=JSON.stringify(data);
+    if(current){try{const stored=JSON.parse(current);if(dataModifiedAt(stored)>dataModifiedAt(data)){setData(stored);return}}catch{}if(current!==next){saveSnapshot(current,"修改前自动保护");try{localStorage.setItem(STORAGE_KEY,next)}catch{try{localStorage.removeItem(BACKUP_KEY);localStorage.setItem(STORAGE_KEY,next)}catch{}}}}else try{localStorage.setItem(STORAGE_KEY,next)}catch{}
   }, [data]);
-  useEffect(()=>{const sync=(event:StorageEvent)=>{if(event.key!==STORAGE_KEY||!event.newValue)return;try{const incoming=JSON.parse(event.newValue);setData(current=>!current||dataModifiedAt(incoming)>dataModifiedAt(current)?incoming:current)}catch{}};window.addEventListener("storage",sync);return()=>window.removeEventListener("storage",sync)},[]);
+  useEffect(()=>{const sync=(event:StorageEvent)=>{if(event.key!==STORAGE_KEY||!event.newValue)return;try{const incoming=JSON.parse(event.newValue);incoming.specialDays=mergePromoBackup(Array.isArray(incoming.specialDays)?incoming.specialDays:[]);setData(current=>!current||dataModifiedAt(incoming)>dataModifiedAt(current)?incoming:current)}catch{}};window.addEventListener("storage",sync);return()=>window.removeEventListener("storage",sync)},[]);
   return [data, setData] as const;
 }
 
@@ -1189,7 +1189,8 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
     "黄体期":{title:"稳住状态，减少内耗",body:"可能出现疲倦或食欲变化，规律睡眠和稳定饮食更重要。",drink:"茯苓陈皮茶或温热大麦茶，避免过甜。",meal:"富镁食物可选南瓜籽一小把、杏仁 10 粒、菠菜、黑豆或 70% 以上黑巧克力 1–2 小块；再搭配燕麦、糙米等复合碳水和高纤维蔬菜。",sport:"中低强度普拉提、快走与拉伸，按感受降强度。",wear:"柔和分层穿搭，腰腹选择不紧绷的版型。"},
     "未记录":{title:"先记录一次周期，建议会更贴合",body:"添加最近一次经期开始和结束日期，即可获得阶段提示。",drink:"日常温水，少量多次。",meal:"规律三餐，保证蛋白质与蔬菜。",sport:"从散步和基础拉伸开始。",wear:"根据体感选择舒适、透气的衣物。"},
   };
-  const advice=phaseAdvice[info.phase];
+  const carePool=CARE_ADVICE_POOLS[info.phase]||CARE_ADVICE_POOLS["未记录"];
+  const advice=carePool[dailyIndex(today,carePool.length)]||phaseAdvice[info.phase];
   const outfitPools=weather?.code!==undefined&&weather.code>=50?[4,6,11]:weather?.temperature!==undefined&&weather.temperature>=28?[1,5,9]:weather?.temperature!==undefined&&weather.temperature<=12?[3,7,10,11]:localSeason(location.latitude)==="秋日"?[7,10,2]:[0,2,6,8];
   const outfitIndex=outfitPools[dailyIndex(today,outfitPools.length)];
   const outfitLabels=["柔粉针织花裙","清爽背心阔腿裤","海盐蓝条纹裙","粉米长羽绒层次","雨天浅蓝防护","轻盈碎花吊带裙","奶油衬衫牛仔裤","燕麦针织格纹裙","柔粉百褶通勤装","轻便短裤休闲装","焦糖碎花叠穿","雾蓝长外套保暖"];
@@ -1239,7 +1240,7 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
     patch(d=>({...d,healthLogs:d.healthLogs.some(l=>l.date===today)?d.healthLogs.map(l=>l.date===today?{...l,weight:logForm.weight?Number(logForm.weight):l.weight,foodNote:logForm.foodNote||l.foodNote,foodImage:foodImage||l.foodImage,calories:calories||l.calories,updatedAt:Date.now()}:l):[...d.healthLogs,{id:uid(),date:today,weight:logForm.weight?Number(logForm.weight):undefined,trained:false,foodNote:logForm.foodNote,foodImage:foodImage||undefined,calories:calories||undefined,updatedAt:Date.now()}]}));setLogForm({weight:"",foodNote:""});
   };
   const addRecipe=(e:FormEvent)=>{e.preventDefault();if(!recipeForm.name.trim())return;const estimated=estimateCalories(`${recipeForm.name} ${recipeForm.ingredients}`).calories;patch(d=>({...d,recipes:[...d.recipes,{id:uid(),meal,name:recipeForm.name.trim(),ingredients:recipeForm.ingredients.trim(),calories:Number(recipeForm.calories)||estimated,custom:true,updatedAt:Date.now()}]}));setRecipeForm({name:"",ingredients:"",calories:""});setShowRecipe(false)};
-  const recipeMethod=(recipe:Recipe)=>({
+  const recipeMethod=(recipe:Recipe)=>recipe.method||({
     r1:"燕麦加少量水煮 3–5 分钟，放凉后拌入无糖酸奶；铺上蓝莓和一小把坚果即可。",
     r2:"鸡蛋煮熟或少油煎熟；牛油果压泥铺在烤脆的全麦吐司上，放上鸡蛋并少量调味。",
     r3:"鸡胸肉用少量盐和黑胡椒腌 10 分钟后煎熟切片；与洗净的生菜、番茄和熟玉米拌匀。",
@@ -1247,6 +1248,11 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
     r5:"番茄炒软出汁后加水煮开，放入豆腐和虾仁煮至变色，最后加入青菜并少量调味。",
     r6:"大米和小米洗净后加水煮开，放入南瓜块小火煮软；加入鸡肉丝煮熟，搅匀至浓稠。",
   } as Record<string,string>)[recipe.id]||`先将${recipe.ingredients||"食材"}洗净备好；按“主食或耐煮食材先熟、蛋白质充分加热、蔬菜最后加入”的顺序烹饪，少油少盐并根据实际份量调整。`;
+  const mealPool=DAILY_RECIPE_POOL.filter(r=>r.meal===meal);
+  const mealStart=dailyIndex(today,Math.max(1,Math.ceil(mealPool.length/3)))*3;
+  const dailyRecipes=[0,1,2].map(offset=>mealPool[(mealStart+offset)%mealPool.length]).filter(Boolean);
+  const customRecipes=data.recipes.filter(r=>r.meal===meal&&r.custom);
+  const shownRecipes=[...dailyRecipes,...customRecipes];
   const solarTerms=["小寒","立春","惊蛰","清明","立夏","芒种","小暑","立秋","白露","寒露","立冬","大雪"];
   const currentTerm=location.country.includes("中国")?solarTerms[new Date().getMonth()]:localSeason(location.latitude);
   const weatherText=(code:number)=>code<2?"晴朗":code<4?"多云":code<60?"阴天":code<80?"有雨":"强对流";
@@ -1271,7 +1277,7 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
     </section>}
     {tab==="food"&&<section>
       <div className="meal-tabs"><div>{(["早餐","午餐","晚餐"] as Recipe["meal"][]).map(x=><button className={meal===x?"active":""} key={x} onClick={()=>setMeal(x)}>{x}</button>)}</div><button onClick={()=>setShowRecipe(true)}>＋ 添加我的菜谱</button></div>
-      <div className="recipe-grid">{data.recipes.filter(r=>r.meal===meal).map(recipe=><article key={recipe.id}><span>{recipe.custom?"我的菜谱":meal}</span><h3>{recipe.name}</h3><p>{recipe.ingredients}</p><details className="recipe-method"><summary>具体做法</summary><p>{recipeMethod(recipe)}</p></details><footer><b>约 {recipe.calories} kcal</b>{recipe.custom&&<button onClick={()=>setDeleteRecipe(recipe.id)}>删除</button>}</footer></article>)}</div>
+      <div className="recipe-grid">{shownRecipes.map(recipe=><article key={recipe.id}><span>{recipe.custom?"我的菜谱":`今日${meal}推荐`}</span><h3>{recipe.name}</h3><p>{recipe.ingredients}</p><details className="recipe-method"><summary>具体做法</summary><p>{recipeMethod(recipe)}</p></details><footer><b>约 {recipe.calories} kcal</b>{recipe.custom&&<button onClick={()=>setDeleteRecipe(recipe.id)}>删除</button>}</footer></article>)}</div>
       <section className="daily-health-log enhanced"><div><span className="eyebrow">DAILY CHECK</span><h2>今日健康记录</h2></div><label>体重（kg）<input type="number" step=".1" value={logForm.weight} onChange={e=>setLogForm({...logForm,weight:e.target.value})} placeholder={todayLog?.weight?String(todayLog.weight):"选填"}/></label><label className="food-description">饮食描述<input value={logForm.foodNote} onChange={e=>setLogForm({...logForm,foodNote:e.target.value})} placeholder={todayLog?.foodNote||"例如：一碗米饭、半份鸡胸肉、一杯酸奶"}/><small>{estimateCalories(logForm.foodNote).items.length?`已识别：${estimateCalories(logForm.foodNote).items.join("、")}`:"加入食物名称和份量，估算会更接近实际。"}</small></label><label className="food-photo"><input type="file" accept="image/*" capture="environment" onChange={handleFoodImage}/>{foodImage||todayLog?.foodImage?<img src={foodImage||todayLog?.foodImage} alt="今日餐食预览"/>:<span>＋ 拍照或上传餐食图片<small>选填 · 仅保存在当前设备</small></span>}</label><div className="calorie-result"><b>{estimateCalories(logForm.foodNote).calories||todayLog?.calories||"–"}</b><span>自动估算 kcal</span><small>结果为常见份量估值，仅供日常记录</small></div><button onClick={saveLog}>保存今日记录</button></section>
       {showRecipe&&<Modal title="添加我的菜谱" onClose={()=>setShowRecipe(false)}><form className="editor-form" onSubmit={addRecipe}><label>菜谱名称<input value={recipeForm.name} onChange={e=>setRecipeForm({...recipeForm,name:e.target.value})} required/></label><label>主要食材与份量<input value={recipeForm.ingredients} onChange={e=>setRecipeForm({...recipeForm,ingredients:e.target.value})} placeholder="例如：燕麦半碗、酸奶一杯、香蕉一根"/></label><label>热量（选填）<input type="number" value={recipeForm.calories} onChange={e=>setRecipeForm({...recipeForm,calories:e.target.value})} placeholder="留空则由工作台估算"/></label><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowRecipe(false)}>取消</button><button>保存菜谱</button></div></form></Modal>}
       {deleteRecipe&&<Modal title="删除这份自定义菜谱吗？" onClose={()=>setDeleteRecipe(null)}><p className="modal-copy">删除后会从你的菜谱清单中移除。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteRecipe(null)}>先保留</button><button className="danger" onClick={()=>{patch(d=>({...d,recipes:d.recipes.filter(r=>r.id!==deleteRecipe)}));setDeleteRecipe(null)}}>确认删除</button></div></Modal>}
@@ -1332,12 +1338,12 @@ function Finance({ data, patch, initialTab="ledger" }:{data:WorkbenchData;patch:
   const parseEntry=(source=quick)=>{
     const text=source.trim();if(!text)return false;
     const d=new Date();if(/昨天/.test(text))d.setDate(d.getDate()-1);else if(/前天/.test(text))d.setDate(d.getDate()-2);
-    const explicitDate=text.match(/(20\d{2})[年/\-.](\d{1,2})[月/\-.](\d{1,2})日?/);if(explicitDate)d.setFullYear(Number(explicitDate[1]),Number(explicitDate[2])-1,Number(explicitDate[3]));
+    const explicitDate=text.match(/(20\d{2})[年/\-.](\d{1,2})[月/\-.](\d{1,2})[日号]?/);const monthDay=text.match(/(?<!\d)(\d{1,2})月(\d{1,2})[日号]?/);if(explicitDate)d.setFullYear(Number(explicitDate[1]),Number(explicitDate[2])-1,Number(explicitDate[3]));else if(monthDay)d.setFullYear(d.getFullYear(),Number(monthDay[1])-1,Number(monthDay[2]));
     let time=`${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;const tm=text.match(/(?:上午|中午|下午|晚上)?\s*(\d{1,2})[点:：](\d{1,2})?/);if(tm){let h=Number(tm[1]);if(/下午|晚上/.test(tm[0])&&h<12)h+=12;if(/中午/.test(tm[0])&&h<11)h+=12;time=`${pad(h)}:${pad(Number(tm[2]||0))}`}else if(/早晨|早上/.test(text))time="09:00";else if(/上午/.test(text))time="10:00";else if(/中午/.test(text))time="12:00";else if(/下午/.test(text))time="15:00";else if(/晚上/.test(text))time="19:00";
     const money=[...text.matchAll(/(?:¥|￥)\s*(\d+(?:\.\d{1,2})?)|(\d+(?:\.\d{1,2})?)\s*(?:元|块)/g)].map(m=>Number(m[1]||m[2]));const nums=[...text.matchAll(/\d+(?:\.\d{1,2})?/g)].map(m=>Number(m[0]));const amount=money[money.length-1]||nums[nums.length-1]||0;if(!amount)return false;
     const isIncome=/收入|工资|奖金|红包|卖闲置|收到|转入|生活费/.test(text);const map:[RegExp,string][]=[[/饭|吃|餐|肉片|外卖|早餐|午餐|晚餐/,"餐饮"],[/奶茶|咖啡|茶|饮料/,"饮品"],[/地铁|打车|公交|滴滴/,"交通"],[/房租|租金/,"房租"],[/普拉提|健身|瑜伽/,"运动"],[/书|课程|学习/,"学习"],[/衣服|裙|鞋|服饰/,"服饰"],[/护肤|化妆|美容/,"美容"],[/工资/,"工资"],[/红包/,"红包"],[/闲置/,"卖闲置"],[/旅行|酒店|机票/,"旅行"],[/快递/,"快递"],[/医院|药|医疗/,"医疗"],[/游戏/,"游戏"]];
     const name=map.find(([key])=>key.test(text))?.[1]||(isIncome?"其他收入":"其他");let cat=data.financeCategories.find(c=>c.type===(isIncome?"income":"expense")&&c.name===name);if(!cat)cat=data.financeCategories.find(c=>c.type===(isIncome?"income":"expense"));
-    const note=text.replace(/今天|昨天|前天|早晨|早上|上午|中午|下午|晚上/g,"").replace(/(?:\d{1,2})[点:：]\d{0,2}/g,"").replace(/\d+(?:\.\d{1,2})?\s*(?:元|块)?/g,"").replace(/花了|支付|支出|收入|消费|一笔/g,"").replace(/[，,。.\s]+/g," ").trim()||name;
+    const note=text.replace(/(?:20\d{2}年)?\d{1,2}月\d{1,2}[日号]?/g,"").replace(/今天|昨天|前天|早晨|早上|上午|中午|下午|晚上/g,"").replace(/(?:\d{1,2})[点:：]\d{0,2}/g,"").replace(/\d+(?:\.\d{1,2})?\s*(?:元|块)?/g,"").replace(/花了|支付|支出|收入|消费|一笔/g,"").replace(/[，,。.\s]+/g," ").trim()||name;
     patch(x=>({...x,financeEntries:[...x.financeEntries,{id:uid(),type:isIncome?"income":"expense",categoryId:cat!.id,amount,note,date:dayKey(d),time,updatedAt:Date.now()}]}));setQuick("");return true;
   };
   const addShopping=(e:FormEvent)=>{e.preventDefault();if(!shopForm.name.trim())return;const name=shopForm.name.trim(),price=Number(shopForm.price)||0,now=Date.now();patch(d=>({...d,shoppingItems:[...d.shoppingItems,{id:uid(),name,price,saved:0,purchased:false,updatedAt:now}],savingsGoals:[...d.savingsGoals,{id:uid(),name,target:price,saved:0,updatedAt:now}]}));setShopForm({name:"",price:""})};
@@ -1345,7 +1351,38 @@ function Finance({ data, patch, initialTab="ledger" }:{data:WorkbenchData;patch:
   const saveCategory=(e:FormEvent)=>{e.preventDefault();if(!categoryForm.name.trim())return;patch(d=>({...d,financeCategories:[...d.financeCategories,{id:uid(),...categoryForm,name:categoryForm.name.trim(),updatedAt:Date.now()}]}));setShowCategory(false);setCategoryForm({name:"",type:"expense",color:"#D48793"})};
   const remove=()=>{if(!deleteTarget)return;patch(d=>{if(deleteTarget.kind==="entry")return {...d,financeEntries:d.financeEntries.filter(x=>x.id!==deleteTarget.id)};if(deleteTarget.kind==="shop")return {...d,shoppingItems:d.shoppingItems.filter(x=>x.id!==deleteTarget.id)};if(deleteTarget.kind==="goal")return {...d,savingsGoals:d.savingsGoals.filter(x=>x.id!==deleteTarget.id)};const removed=d.financeCategories.find(x=>x.id===deleteTarget.id);const fallback=d.financeCategories.find(x=>x.id!==deleteTarget.id&&x.type===removed?.type);return {...d,financeCategories:d.financeCategories.filter(x=>x.id!==deleteTarget.id),financeEntries:fallback?d.financeEntries.map(x=>x.categoryId===deleteTarget.id?{...x,categoryId:fallback.id,updatedAt:Date.now()}:x):d.financeEntries}});setDeleteTarget(null)};
   const unbought=data.shoppingItems.filter(x=>!x.purchased).reduce((s,x)=>s+x.price,0);
-  const adviceRatio=data.financeSettings.monthlyIncome?Math.min(60,Math.max(10,Math.round((data.financeSettings.monthlyIncome-expenseTotal)/data.financeSettings.monthlyIncome*100))):null;
+  const monthlyIncome=data.financeSettings.monthlyIncome||0;
+  const currentMonth=today.slice(0,7);
+  const monthlyExpense=data.financeEntries.filter(e=>e.type==="expense"&&e.date.startsWith(currentMonth)).reduce((sum,e)=>sum+e.amount,0);
+  const expenseRate=monthlyIncome?monthlyExpense/monthlyIncome:0;
+  const adviceRatio=monthlyIncome?Math.min(60,Math.max(5,Math.round((monthlyIncome-monthlyExpense)/monthlyIncome*100))):null;
+  const financeAdvice=useMemo(()=>{
+    if(!monthlyIncome)return [
+      {title:"先建立安全垫",body:"录入收入后，建议会结合收入层级、本月支出和结余情况变化。"},
+      {title:"补齐真实账目",body:"连续记录一个完整月，才能分清必要支出、弹性消费与可储蓄空间。"},
+      {title:"先理解再购买",body:"金融产品并不等于存款，购买前核对风险、期限、费用与流动性。"},
+      {title:"让目标有顺序",body:"优先保障生活和应急资金，再安排购物、旅行与长期投资。"}
+    ];
+    const pressure=expenseRate>=.9?"本月支出已接近收入，暂缓新增投资和非必要目标，先逐项检查可调整支出。":expenseRate>=.7?"本月支出占比较高，可先把结余的一部分自动转入应急账户，再逐步优化弹性消费。":`当前现金流相对从容，可尝试自动储蓄约 ${adviceRatio}% ，但仍要为近期大额支出留出现金。`;
+    if(monthlyIncome<=7000)return [
+      {title:"现金流优先",body:pressure},
+      {title:"先攒 1 个月安全垫",body:"先以一个月必要生活费为小目标，达到后再逐步扩展到 3–6 个月；放在流动性高、波动低的位置。"},
+      {title:"从小比例开始",body:"若当月结余稳定，可从收入的 5%–10% 自动储蓄开始。金额不必追求大，重点是不影响房租、饮食和医疗。"},
+      {title:"投资自己也要有回报",body:"技能学习支出优先选择能形成作品、证书或真实工作能力的项目，避免同时购买多门无法完成的课程。"}
+    ];
+    if(monthlyIncome<=30000)return [
+      {title:"建立分层账户",body:pressure},
+      {title:"覆盖 3–6 个月支出",body:"应急资金达标后，把一年内要用的钱与长期资金分开，避免市场波动影响旅行、购物或生活计划。"},
+      {title:"按目标配置结余",body:`现金流允许时，可参考约 ${Math.min(35,adviceRatio||0)}% 的储蓄比例，在应急、阶段目标和长期积累之间分配，而不是全部放进同一种产品。`},
+      {title:"控制集中风险",body:"开始接触股票基金时，优先理解宽基指数、债券和现金类资产的差异；单一行业或个股只使用可承受损失的资金。"}
+    ];
+    return [
+      {title:"提高安全垫上限",body:pressure},
+      {title:"保障与责任匹配",body:"结合家庭责任、负债和职业稳定性检查医疗、意外及必要保障；不要把储蓄型产品当成唯一投资工具。"},
+      {title:"分散资金用途",body:`可参考约 ${Math.min(45,adviceRatio||0)}% 的长期积累比例，分开管理短期现金、稳健资产与权益类资产，并设置年度再平衡规则。`},
+      {title:"关注税费与流动性",body:"较大金额配置前，比较管理费、交易成本、锁定期限和退出条件；避免把资金集中在单一平台、单一市场或单一产品。"}
+    ];
+  },[monthlyIncome,monthlyExpense,expenseRate,adviceRatio]);
   return <div className="page finance-page">
     <header className="finance-hero"><div><span className="eyebrow">MY MONEY GARDEN</span><h1>让每一笔钱，都去想去的地方</h1><p>认真记录，轻松看见生活的选择与积累。</p></div><div className="privacy-income"><i>♡</i><span>建议页保护工资隐私<small>账本正常展示收入与结余</small></span></div></header>
     <nav className="growth-tabs finance-tabs"><button className={tab==="ledger"?"active":""} onClick={()=>setTab("ledger")}>记账看板</button><button className={tab==="shopping"?"active":""} onClick={()=>setTab("shopping")}>购物与攒钱</button><button className={tab==="advice"?"active":""} onClick={()=>setTab("advice")}>理财建议</button></nav>
@@ -1364,7 +1401,7 @@ function Finance({ data, patch, initialTab="ledger" }:{data:WorkbenchData;patch:
     </section>}
     {tab==="advice"&&<section className="advice-layout">
       <article className="income-setting"><span className="eyebrow">PRIVATE INPUT</span><h2>收入设置</h2><div><input type="password" inputMode="decimal" value={incomeInput} onChange={e=>setIncomeInput(e.target.value)} placeholder={data.financeSettings.monthlyIncome?"当前收入已安全保存，可重新录入":"输入月收入"}/><button onClick={()=>{const amount=Number(incomeInput);if(amount>0){patch(d=>{const category=d.financeCategories.find(c=>c.type==="income"&&c.name==="工资");const month=today.slice(0,7);const existing=category&&d.financeEntries.find(e=>e.categoryId===category.id&&e.date.startsWith(month));return {...d,financeSettings:{monthlyIncome:amount,updatedAt:Date.now()},financeEntries:existing?d.financeEntries.map(e=>e.id===existing.id?{...e,amount,note:"本月到手工资",updatedAt:Date.now()}:e):category?[...d.financeEntries,{id:uid(),type:"income",categoryId:category.id,amount,note:"本月到手工资",date:today,time:"09:00",updatedAt:Date.now()}]:d.financeEntries}});setIncomeInput("")}}}>保存</button></div><small>数据仅保存在此设备，不会上传。</small></article>
-      <article className="advice-cards"><div><i>01</i><span><h3>先建立安全垫</h3><p>优先准备可覆盖 3–6 个月必要支出的应急资金，并放在流动性较好的位置。</p></span></div><div><i>02</i><span><h3>量入为出</h3><p>{adviceRatio?`结合当前记录，可先尝试把约 ${adviceRatio}% 的收入用于储蓄与长期目标，再按生活变化调整。`:"录入收入并坚持记账后，工作台会给出不显示金额的储蓄比例参考。"}</p></span></div><div><i>03</i><span><h3>风险与自己匹配</h3><p>购买金融产品前，了解风险等级、期限、费用和流动性；不使用借款进行投资。</p></span></div><div><i>04</i><span><h3>保持分散与长期</h3><p>先保障日常现金流，再根据风险承受能力考虑低风险配置，避免把资金集中在单一产品。</p></span></div></article>
+      <article className="advice-cards">{financeAdvice.map((item,index)=><div key={item.title}><i>{pad(index+1)}</i><span><h3>{item.title}</h3><p>{item.body}</p></span></div>)}</article>
       <p className="finance-disclaimer">以上为一般性财务整理与风险教育，不构成投资建议；产品选择请结合自身情况并通过正规金融机构核实。</p>
     </section>}
     {deleteTarget&&<Modal title="确认删除这条财务记录吗？" onClose={()=>setDeleteTarget(null)}><p className="modal-copy">删除后会影响相应统计，小熊再帮你确认一次。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteTarget(null)}>先保留</button><button className="danger" onClick={remove}>确认删除</button></div></Modal>}
@@ -1454,6 +1491,8 @@ function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch
   const [bookCategoryDraft,setBookCategoryDraft]=useState("");
   const [podcastCategoryDraft,setPodcastCategoryDraft]=useState("");
   const today=todayKey();
+  const agentDeep=agentDeepDiveForDay(today);
+  const resourcesForSkill=(skillId:string)=>{if(skillId==="agent")return agentResourcesForDay(today);const skill=data.skills.find(item=>item.id===skillId);return skill?[...careerResources(skillId,skill.name),...(SKILL_LINKS[skillId]||[])]:SKILL_LINKS[skillId]||[]};
   useEffect(()=>{
     if(tab!=="news")return;
     fetch("https://60s.viki.moe/v2/60s").then(response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>{
@@ -1511,7 +1550,7 @@ function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch
         {openSkill===skill.id&&<div className="skill-detail">
           <div className="plan-columns"><div><h4>初级计划</h4>{skill.beginner.map(x=><button className="lesson-link" key={x} onClick={()=>setLesson({skill,topic:x})}>○ {x}<span>学习 →</span></button>)}</div><div><h4>进阶计划</h4>{skill.advanced.map(x=><button className="lesson-link" key={x} onClick={()=>setLesson({skill,topic:x})}>◇ {x}<span>学习 →</span></button>)}</div></div>
           <div className="knowledge"><h4>核心知识点</h4>{skillKnowledge(skill).map(x=><button key={x} onClick={()=>setLesson({skill,topic:x})}>{x}</button>)}</div>
-          <div className="resource-list"><h4>推荐资料</h4>{(SKILL_LINKS[skill.id]||[]).map(x=><a key={x.url} href={x.url} target="_blank" rel="noreferrer">↗ {x.label}</a>)}</div>
+          <div className="resource-list"><h4>推荐资料</h4>{resourcesForSkill(skill.id).map(x=><a key={x.url} href={x.url} target="_blank" rel="noreferrer">↗ {x.label}</a>)}</div>
           {skill.notes&&<div className="skill-note"><b>我的总结</b><p>{skill.notes}</p></div>}
           <details className="material-box"><summary>粘贴我的资料并本地提炼</summary><textarea value={sourceText} onChange={e=>setSourceText(e.target.value)} placeholder="粘贴学习笔记或资料文字。工作台会在本地抽取前四个要点，不会上传。"/><button onClick={()=>summarize(skill.id)}>提炼到技能卡</button></details>
           <footer><button className={`skill-checkin ${skill.lastCheckin===today?"checked":""}`} onClick={()=>toggleSkillCheckin(skill.id)}><i>{skill.lastCheckin===today?"✓":""}</i>{skill.lastCheckin===today?"今日已打卡":"今日打卡"}</button><div><button className="secondary" onClick={()=>setDetailSkill(skill)}>深入讲解</button><button onClick={()=>cycleSkill(skill.id)}>更新技能进度 →</button></div></footer>
@@ -1542,8 +1581,8 @@ function Growth({ data, patch, initialTab="path" }: { data: WorkbenchData; patch
     {tab==="podcasts"&&<section className="growth-feed"><div className="growth-section-head"><div><span className="eyebrow">DAILY PODCASTS</span><h2>今天的播客推荐</h2></div></div><div className="recommend-grid podcast-grid">{Array.from({length:6},(_,i)=>DAILY_PODCASTS[(dailyIndex(today,DAILY_PODCASTS.length)+i)%DAILY_PODCASTS.length]).map(x=><article key={x[0]}><span>{x[2]}</span><h3>{x[0]}</h3><p>{x[1]}</p><a target="_blank" rel="noreferrer" href={`https://www.xiaoyuzhoufm.com/search?q=${encodeURIComponent(x[0])}`}>查找播客 ↗</a></article>)}</div><div className="library-panel"><h2>我的播客</h2><form className="media-add-form podcast" onSubmit={e=>{e.preventDefault();if(!podcastForm.title.trim())return;patch(d=>({...d,savedPodcasts:[...d.savedPodcasts,{id:uid(),title:podcastForm.title.trim(),host:podcastForm.host.trim(),category:podcastForm.category,currentEpisode:Number(podcastForm.currentEpisode)||0,updatedAt:Date.now()}]}));setPodcastForm({...podcastForm,title:"",host:"",currentEpisode:""})}}><input value={podcastForm.title} onChange={e=>setPodcastForm({...podcastForm,title:e.target.value})} placeholder="播客名称"/><input value={podcastForm.host} onChange={e=>setPodcastForm({...podcastForm,host:e.target.value})} placeholder="主播"/><select value={podcastForm.category} onChange={e=>setPodcastForm({...podcastForm,category:e.target.value})}>{data.podcastCategories.map((x:MoodTag)=><option key={x.id}>{x.name}</option>)}</select><input type="number" min="0" value={podcastForm.currentEpisode} onChange={e=>setPodcastForm({...podcastForm,currentEpisode:e.target.value})} placeholder="听到第几期"/><button>添加</button></form><div className="personal-media-list podcast">{data.savedPodcasts.map(item=><article key={item.id}><input value={item.title} onChange={e=>patch(d=>({...d,savedPodcasts:d.savedPodcasts.map(x=>x.id===item.id?{...x,title:e.target.value,updatedAt:Date.now()}:x)}))}/><input value={item.host} onChange={e=>patch(d=>({...d,savedPodcasts:d.savedPodcasts.map(x=>x.id===item.id?{...x,host:e.target.value,updatedAt:Date.now()}:x)}))}/><label><input type="number" min="0" value={item.currentEpisode} onChange={e=>patch(d=>({...d,savedPodcasts:d.savedPodcasts.map(x=>x.id===item.id?{...x,currentEpisode:Number(e.target.value),updatedAt:Date.now()}:x)}))}/><span>第 {item.currentEpisode} 期</span></label><button onClick={()=>patch(d=>({...d,savedPodcasts:d.savedPodcasts.filter(x=>x.id!==item.id)}))}>删除</button></article>)}</div></div></section>}
     {deleteGoal&&<Modal title="删除这个长期目标吗？" onClose={()=>setDeleteGoal(null)}><p className="modal-copy">这条目标会从清单中移除，小熊再帮你确认一次。</p><div className="modal-actions"><button className="secondary" onClick={()=>setDeleteGoal(null)}>先保留</button><button className="danger" onClick={()=>{patch(d=>({...d,goals:d.goals.filter(g=>g.id!==deleteGoal)}));setDeleteGoal(null)}}>确认删除</button></div></Modal>}
     {tab==="jobs"&&<Jobs data={data} patch={patch} embedded />}
-    {detailSkill&&<Modal title={`${detailSkill.name} · 深入讲解`} onClose={()=>setDetailSkill(null)}><div className="skill-deep"><img src="/bears/v2/bear-reading.png" alt="陪伴学习的水彩小熊"/><p>{SKILL_DETAILS[detailSkill.id]?.intro}</p><div className="deep-columns"><section><h3>学习脉络</h3>{SKILL_DETAILS[detailSkill.id]?.steps.map((x,i)=><p key={x}><b>{i+1}</b>{x}</p>)}</section><section><h3>动手练习</h3>{SKILL_DETAILS[detailSkill.id]?.practice.map(x=><p key={x}>✦ {x}</p>)}</section></div><div className="deep-resources"><h3>官方推荐资料</h3>{(SKILL_LINKS[detailSkill.id]||[]).map(x=><a key={x.url} href={x.url} target="_blank" rel="noreferrer">{x.label}<span>打开 ↗</span></a>)}</div></div></Modal>}
-    {lesson&&<Modal title={lessonFor(lesson.skill,lesson.topic).title} onClose={()=>setLesson(null)}><article className="knowledge-lesson"><section><span>01 · 先理解</span><p>{lessonFor(lesson.skill,lesson.topic).definition}</p></section><section><span>02 · 具体怎么学</span><p>{lessonFor(lesson.skill,lesson.topic).explanation}</p></section><section><span>03 · 放进真实场景</span><p>{lessonFor(lesson.skill,lesson.topic).example}</p></section><section><span>04 · 现在就练</span>{lessonFor(lesson.skill,lesson.topic).practice.map(x=><p key={x}>✦ {x}</p>)}</section><div className="deep-resources">{(SKILL_LINKS[lesson.skill.id]||[]).map(x=><a key={x.url} href={x.url} target="_blank" rel="noreferrer">{x.label}<span>继续学习 ↗</span></a>)}</div></article></Modal>}
+    {detailSkill&&<Modal title={`${detailSkill.name} · 深入讲解`} onClose={()=>setDetailSkill(null)}>{detailSkill.id==="agent"?<article className="agent-deep-dive"><header><span>今日深度专题 · 每天轮换</span><h2>{agentDeep.title}</h2><p>{agentDeep.intro}</p></header><section><h3>关键方案对比</h3>{agentDeep.compare.map((x,i)=><p key={x}><b>{pad(i+1)}</b>{x}</p>)}</section><section className="agent-case"><h3>优秀案例拆解</h3><p>{agentDeep.caseStudy}</p></section><div className="deep-columns"><section><h3>涉及的技术</h3>{agentDeep.technology.map(x=><p key={x}>✦ {x}</p>)}</section><section><h3>常见误区</h3>{agentDeep.pitfalls.map(x=><p key={x}>○ {x}</p>)}</section></div><section><h3>动手练习</h3>{agentDeep.practice.map((x,i)=><p key={x}><b>{i+1}</b>{x}</p>)}</section><div className="deep-resources"><h3>本专题资料</h3>{agentDeep.resources.map(x=><a key={x.url} href={x.url} target="_blank" rel="noreferrer">{x.label}<span>继续学习 ↗</span></a>)}</div></article>:<div className="skill-deep"><img src="/bears/v2/bear-reading.png" alt="陪伴学习的水彩小熊"/><p>{SKILL_DETAILS[detailSkill.id]?.intro}</p><div className="deep-columns"><section><h3>学习脉络</h3>{SKILL_DETAILS[detailSkill.id]?.steps.map((x,i)=><p key={x}><b>{i+1}</b>{x}</p>)}</section><section><h3>动手练习</h3>{SKILL_DETAILS[detailSkill.id]?.practice.map(x=><p key={x}>✦ {x}</p>)}</section></div><section className="career-deep-topics"><h3>关键知识拆解</h3>{skillKnowledge(detailSkill).slice(0,4).map((topic,index)=>{const content=careerLesson(detailSkill.id,detailSkill.name,topic);return <article key={topic}><b>{pad(index+1)} · {topic}</b><p>{content.definition}</p><small>{content.example}</small><button onClick={()=>{setDetailSkill(null);setLesson({skill:detailSkill,topic})}}>展开完整课程 →</button></article>})}</section><div className="deep-resources"><h3>推荐资料</h3>{resourcesForSkill(detailSkill.id).map(x=><a key={x.url} href={x.url} target="_blank" rel="noreferrer">{x.label}<span>打开 ↗</span></a>)}</div></div>}</Modal>}
+    {lesson&&<Modal title={lessonFor(lesson.skill,lesson.topic).title} onClose={()=>setLesson(null)}><article className="knowledge-lesson"><section><span>01 · 理论概念</span><p>{lessonFor(lesson.skill,lesson.topic).definition}</p></section><section><span>02 · 大白话说明</span><p>{lessonFor(lesson.skill,lesson.topic).explanation}</p></section><section><span>03 · 实际案例</span><p>{lessonFor(lesson.skill,lesson.topic).example}</p></section><section><span>04 · 现在就练</span>{lessonFor(lesson.skill,lesson.topic).practice.map(x=><p key={x}>✦ {x}</p>)}</section><div className="deep-resources"><h3>与本知识点对应的资料</h3>{lessonFor(lesson.skill,lesson.topic).resources.map(x=><a key={x.url} href={x.url} target="_blank" rel="noreferrer">{x.label}<span>继续学习 ↗</span></a>)}</div></article></Modal>}
   </div>;
 }
 
@@ -1572,10 +1611,17 @@ function Jobs({data,patch,embedded=false}:{data:WorkbenchData;patch:(fn:(d:Workb
   const sourceMinSize=data.jobCriteria.find(c=>c.kind==="最低公司人数")?.value.trim()||"";
   const sourceQuery=[sourceKeywords,sourceLocations].filter(Boolean).join(" ")||"招聘";
   const publicJobSources=[
-    {name:"BOSS 直聘",note:"打开对应关键词的公开搜索，可继续选择经验、薪资与公司规模。",url:`https://www.zhipin.com/web/geek/job?query=${encodeURIComponent(sourceQuery)}`},
-    {name:"前程无忧",note:"打开公开岗位搜索，并在网站内继续细化城市与公司性质。",url:`https://we.51job.com/pc/search?keyword=${encodeURIComponent(sourceQuery)}`},
-    {name:"猎聘",note:"打开公开招聘结果，适合继续查看岗位描述与公司信息。",url:`https://www.liepin.com/zhaopin/?key=${encodeURIComponent(sourceQuery)}`},
+    {name:"BOSS 直聘",note:"在手机端打开 BOSS 直聘 App，继续搜索并细化岗位条件。",url:`https://www.zhipin.com/web/geek/job?query=${encodeURIComponent(sourceQuery)}`,appUrl:"bosszp://"},
+    {name:"前程无忧",note:"在手机端打开前程无忧 App，继续搜索城市与公司类型。",url:`https://we.51job.com/pc/search?keyword=${encodeURIComponent(sourceQuery)}`,appUrl:"job51://"},
+    {name:"猎聘",note:"在手机端打开猎聘 App，继续查看岗位与公司信息。",url:`https://www.liepin.com/zhaopin/?key=${encodeURIComponent(sourceQuery)}`,appUrl:"liepin://"},
   ];
+  const openJobSource=(event:ReactMouseEvent<HTMLAnchorElement>,source:typeof publicJobSources[number])=>{
+    if(!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent))return;
+    event.preventDefault();
+    const fallback=source.url;
+    window.location.href=source.appUrl;
+    window.setTimeout(()=>{if(document.visibilityState==="visible")window.location.href=fallback},1400);
+  };
   const filtered=data.jobs.filter(j=>{
     const text=`${j.title} ${j.jd}`.toLowerCase();
     const searchWords=keyword.toLowerCase().split(/[\s/、]+/).filter(Boolean);
@@ -1604,7 +1650,7 @@ function Jobs({data,patch,embedded=false}:{data:WorkbenchData;patch:(fn:(d:Workb
   return <div className={`jobs-page ${embedded?"embedded":""}`}>
     <section className="job-source-note featured">
       <div><span className="eyebrow">PUBLIC JOB SOURCES</span><h2>公开岗位入口</h2><p>岗位可能随时下线，公司规模与薪资请在投递前再次核验。</p></div>
-      <div><a href={publicJobSources[0].url} target="_blank" rel="noreferrer">查看 BOSS 公开搜索</a><a className="secondary" href={publicJobSources[1].url} target="_blank" rel="noreferrer">查看前程无忧公开页</a></div>
+      <div>{publicJobSources.map((source,index)=><a key={source.name} className={index?"secondary":undefined} href={source.url} target="_blank" rel="noreferrer" onClick={e=>openJobSource(e,source)}>打开{source.name} App</a>)}</div>
     </section>
     <div className="growth-tabs jobs-tabs">
       {(["全部",...statuses] as const).map(s=><button key={s} className={status===s?"active":""} onClick={()=>setStatus(s)}>{s}<small>{s==="全部"?data.jobs.length:data.jobs.filter(j=>j.status===s).length}</small></button>)}
@@ -1621,7 +1667,7 @@ function Jobs({data,patch,embedded=false}:{data:WorkbenchData;patch:(fn:(d:Workb
       </div>
       <form className="job-criterion-add" onSubmit={addCriterion}><select value={criterionDraft.kind} onChange={e=>setCriterionDraft({kind:e.target.value as JobCriterion["kind"],value:""})}><option>关键词</option><option>地点</option><option>最低公司人数</option></select><input type={criterionDraft.kind==="最低公司人数"?"number":"text"} min={criterionDraft.kind==="最低公司人数"?"1":undefined} value={criterionDraft.value} onChange={e=>setCriterionDraft({...criterionDraft,value:e.target.value})} placeholder={criterionPlaceholder(criterionDraft.kind)}/><button>＋ 添加条件</button></form>
     </section>
-    <section className="public-job-results"><header><div><span className="eyebrow">LIVE SEARCH LINKS</span><h2>符合条件的公开岗位</h2></div><p>{data.jobCriteria.length?`已按当前 ${data.jobCriteria.length} 条条件刷新${sourceMinSize?` · 公司规模下限 ${sourceMinSize} 人`:""}`:"添加筛选条件后，这些入口会立即更新"}</p></header><div>{publicJobSources.map(source=><a href={source.url} target="_blank" rel="noreferrer" key={source.name}><b>{source.name}</b><p>{source.note}</p><span>查看匹配岗位 →</span></a>)}</div></section>
+    <section className="public-job-results"><header><div><span className="eyebrow">LIVE SEARCH LINKS</span><h2>符合条件的公开岗位</h2></div><p>{data.jobCriteria.length?`已按当前 ${data.jobCriteria.length} 条条件刷新${sourceMinSize?` · 公司规模下限 ${sourceMinSize} 人`:""}`:"添加筛选条件后，这些入口会立即更新"}</p></header><div>{publicJobSources.map(source=><a href={source.url} target="_blank" rel="noreferrer" key={source.name} onClick={e=>openJobSource(e,source)}><b>{source.name}</b><p>{source.note}</p><span>手机端打开 App →</span></a>)}</div></section>
     <section className="job-grid">
       {filtered.map(job=><article className="job-card" key={job.id}>
         <header><div className="company-mark">{job.company.slice(0,1)}</div><div><span>{job.company}</span><h2>{job.title}</h2></div><button onClick={()=>setDeleteId(job.id)} aria-label={`删除${job.title}`}>×</button></header>

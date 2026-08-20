@@ -10,7 +10,9 @@ const K:Record<string,Record<string,Entry>>={
     "页面地标与标题层级":["地标元素帮助辅助技术快速跳到导航、主体和补充区域；h1–h6 应表达内容层级而非单纯控制字号。","它们相当于书的目录和章节，不应从 h1 直接跳到 h4 只因为 h4 看起来更小。","一页通常有清晰 h1，每张主要卡片用 h2，其内部小节再用 h3。","用浏览器无障碍树检查当前页面地标与标题大纲。"],
     "键盘焦点":["焦点表示当前接收键盘输入的元素；顺序应符合阅读流，弹窗开启后焦点应进入弹窗并在关闭后返回触发按钮。","焦点就像键盘用户的鼠标指针，若看不见或跳错位置，页面等于无法操作。","用 CSS outline 保留清晰焦点环；不要用正数 tabindex 人为打乱顺序。","连续按 Tab 检查顺序，并测试弹窗打开与关闭前后的焦点位置。"],
     "响应式图片":["响应式图片用 srcset、sizes 和 picture 根据屏幕尺寸、像素密度或格式选择合适资源。","手机不该下载桌面巨图，再靠 CSS 缩小；浏览器应提前知道它需要哪个尺寸。","头像提供 160w、320w 两档，文章主图提供 640w、1280w，配合 sizes 减少移动端流量。","为同一张图生成两种尺寸，比较网络面板中的下载体积。"],
-    "表单校验":["表单校验应同时包含即时提示、提交校验与服务端校验；前端校验改善体验，但不能作为安全边界。","浏览器提示只是第一道门，用户可以绕过前端，所以服务器仍需重新检查。","金额字段不仅要 required，还要限制 min、step，并在服务端拒绝 NaN、负数和超范围值。","为注册表单列出格式错误、重复账号和网络失败三类提示。"]
+    "表单校验":["表单校验应同时包含即时提示、提交校验与服务端校验；前端校验改善体验，但不能作为安全边界。","浏览器提示只是第一道门，用户可以绕过前端，所以服务器仍需重新检查。","金额字段不仅要 required，还要限制 min、step，并在服务端拒绝 NaN、负数和超范围值。","为注册表单列出格式错误、重复账号和网络失败三类提示。"],
+    "Web Components 概念":["Web Components 是浏览器原生的组件化技术集合，核心包括 Custom Elements、Shadow DOM 和 HTML Templates，可创建带独立行为与样式边界的自定义标签。","它像把一组结构、样式和交互封装成自己的积木，例如 <task-card>；但 Shadow DOM 也会改变 CSS、测试和 RPA 定位方式，不能只看到‘可复用’。","一个 <user-avatar> 可通过 observedAttributes 响应 name 变化，并在 shadowRoot 内渲染图片；自动化若需进入 Shadow DOM，必须使用工具支持的 shadow root 查询，而普通 XPath 可能无法直接穿透。","实现一个 <status-badge> 自定义元素，支持 status 属性，并比较有无 Shadow DOM 时 CSS 和定位方式的差异。"],
+    "性能与 SEO":["前端性能关注加载、渲染与交互速度，SEO 关注搜索引擎能否发现、理解和正确展示内容。常用体验指标包括 LCP、INP、CLS，基础 SEO 包括标题、描述、语义结构、可抓取链接和结构化数据。","页面快不等于 SEO 一定好，SEO 好也不等于交互快；两者会在图片尺寸、首屏内容和服务端输出等地方相互影响。","首屏小熊大图若没有明确宽高会造成 CLS，文件过大拖慢 LCP；改用 WebP、响应式尺寸和 width/height，同时保证标题与正文出现在可读取的 HTML 中。","用 Lighthouse 检查一个页面，分别记录最大图片、布局位移来源和缺失的 title/description，并完成一项可量化优化。"]
   },
   xpath:{
     "相对路径":["相对 XPath 从任意匹配节点开始，常以 // 开头，比依赖整个页面层级的绝对路径更能抵抗布局变化。","不要记住“从大门走到三楼第五间”，而要找“门牌写着保存的房间”。","//form[@id='profile']//button[@type='submit'] 即使表单外层多包一层 div 仍可能有效。","为同一按钮写一条绝对路径和两条相对路径，修改外层结构后比较稳定性。"],
@@ -115,10 +117,24 @@ const K:Record<string,Record<string,Entry>>={
 };
 
 const SKILL_NAMES:Record<string,string>={html:"HTML",xpath:"XPath",python:"Python",mysql:"MySQL",api:"API",prompt:"提示工程",workflow:"工作流",bi:"BI",warehouse:"数据仓库",linux:"Linux",expression:"表达能力"};
+const PLAN_TOPIC_ALIASES:Record<string,Record<string,string>>={
+  html:{"语义化标签":"语义化","表单与基础可访问性":"无障碍","Web Components 概念":"Web Components 概念","性能与 SEO":"性能与 SEO"},
+  xpath:{"节点、属性与路径":"相对路径","常用定位表达式":"谓词","轴与复杂条件":"祖先与兄弟轴","稳定定位策略":"等待与重试策略"},
+  python:{"语法、数据结构、函数":"函数","文件与异常处理":"日志与配置","自动化脚本":"单元测试","接口与数据处理":"requests"},
+  mysql:{"增删改查":"SQL","表设计与关联":"JOIN","索引与查询优化":"查询执行计划","事务与权限":"锁与隔离级别"},
+  api:{"HTTP 与 REST":"HTTP","用工具调试请求":"JSON","鉴权、分页与重试":"OAuth","接口设计与安全":"Webhook 验签"},
+  prompt:{"清晰指令与上下文":"约束","结构化输出":"示例","评测与迭代":"回归评测","工具使用提示":"提示注入防护"},
+  workflow:{"拆解输入、处理、输出":"状态机","异常与分支":"重试","可观测性":"告警与追踪","人机协同与恢复":"人工接管"},
+  bi:{"指标与维度":"指标","基础图表":"可视化","看板设计":"视觉层级","数据建模":"筛选上下文"},
+  warehouse:{"事实表与维度表":"星型模型","ETL 基础":"ETL","分层建模":"分层","质量与血缘":"数据血缘"},
+  linux:{"目录与常用命令":"Shell","文件权限":"权限","进程、网络与脚本":"网络诊断","部署排障":"systemd 服务"},
+  expression:{"聊天不冷场与主动倾听":"积极倾听","把一件事讲得清楚又有趣":"故事表达","高情商拒绝别人的 3 种方式":"边界沟通","被反问时不陷入自证陷阱":"冲突降温","职场向上管理":"向上管理","巧妙拒绝职责外任务与不合理要求":"职责边界"}
+};
 const q=(skillId:string,topic:string)=>`https://search.bilibili.com/all?keyword=${encodeURIComponent(`${SKILL_NAMES[skillId]||skillId} ${topic} 教程 实战`)}`;
 
 export function careerLesson(skillId:string,skillName:string,topic:string,level:"beginner"|"advanced"|"knowledge"="knowledge"):CareerLesson{
-  const hit=K[skillId]?.[topic];
+  const routedTopic=PLAN_TOPIC_ALIASES[skillId]?.[topic]||topic;
+  const hit=K[skillId]?.[routedTopic];
   if(hit)return {definition:hit[0],plain:hit[1],example:hit[2],practice:[hit[3],`完成后用自己的话写下“${topic}解决什么问题、什么时候不适用”。`],resources:[{label:`B站 · ${skillName} ${topic} 实战`,url:q(skillId,topic)}]};
   const advanced=level==="advanced";
   return {

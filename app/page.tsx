@@ -4,7 +4,10 @@ import { ChangeEvent, FormEvent, MouseEvent as ReactMouseEvent, useEffect, useMe
 import { EXTRA_LOCATION_ROWS } from "./location-options";
 import { agentDeepDiveForDay, agentLesson, agentResourcesForDay } from "./skill-content";
 import { CARE_ADVICE_POOLS, DAILY_RECIPE_POOL, MORE_DAILY_LESSONS } from "./daily-content";
+import { LEARNING_ROTATION_EXPANSION } from "./learning-expansion";
+import { IELTS_EXPANSION_TRANSLATIONS, IELTS_WORDS_EXPANSION } from "./ielts-expansion";
 import { careerLesson, careerResources } from "./career-content";
+import { mergeStoredData, readPrimaryData, writePrimaryData } from "./data-storage";
 
 type View = "home" | "calendar" | "growth" | "health" | "finance" | "jobs" | "travel" | "memos" | "cats";
 type Category = { id: string; name: string; color: string };
@@ -36,7 +39,8 @@ type TravelPlan = { id:string; name:string; startDate:string; endDate:string; it
 type SpecialCategory = { id:string; name:string; icon:string; order:number; updatedAt:number };
 type SpecialDay = { id:string; title:string; date:string; kind:string; calendar:"公历"|"农历"; lunarDate?:string; lunarMonth?:number; lunarDay?:number; reminderDays:number; recurrence?:"weekly"|"monthly"|"yearly"; weekday?:number; monthDay?:number; month?:number; updatedAt:number };
 type CatProfile = { id:string; name:string; photo?:string; birthday:string; breed:string; sex:"妹妹"|"弟弟"|"未知"; homeDate:string; neutered:boolean; updatedAt:number };
-type CatCare = { id:string; catId:string; title:string; date:string; done:boolean; order:number; updatedAt:number };
+type CatCarePeriod="早晨"|"中午"|"晚上";
+type CatCare = { id:string; catId:string; title:string; date:string; done:boolean; periods?:CatCarePeriod[]; completedPeriods?:CatCarePeriod[]; order:number; updatedAt:number };
 type CatGrowth = { id:string; catId:string; date:string; title:string; note:string; photo?:string; updatedAt:number };
 type CatHealth = { id:string; catId:string; kind:"疫苗"|"驱虫"|"体检"|"复查"|"用药"|"其他"; title:string; date:string; note:string; done:boolean; updatedAt:number };
 type CatWeight = { id:string; catId:string; date:string; weight:number; updatedAt:number };
@@ -200,6 +204,16 @@ const IELTS_WORDS:DailyWord[][] = [
     ["diverse","/daɪˈvɜːs/","多样的","The city has a diverse population."],["efficient","/ɪˈfɪʃənt/","高效的","Public transport is an efficient option."],["emerge","/ɪˈmɜːdʒ/","出现","New challenges may emerge over time."],["impact","/ˈɪmpækt/","影响","Tourism has a major impact on local culture."],["indicate","/ˈɪndɪkeɪt/","表明","The figures indicate steady growth."],["motivate","/ˈməʊtɪveɪt/","激励","Small goals can motivate learners."],["preserve","/prɪˈzɜːv/","保护","We should preserve historic buildings."],["relevant","/ˈreləvənt/","相关的","Include only relevant information."],["transform","/trænsˈfɔːm/","改变","Technology can transform the workplace."],["widespread","/ˈwaɪdspred/","广泛的","Smartphone use is now widespread."]
   ]
 ].map(set=>set.map(([word,phonetic,meaning,example])=>({word,phonetic,meaning,example})));
+IELTS_WORDS.push(...IELTS_WORDS_EXPANSION);
+const TOPIK_VOCAB:string[][]=[
+  ["가족 — 家人","부모님 — 父母","형제 — 兄弟姐妹","고향 — 故乡","함께 — 一起","돌보다 — 照顾","연락하다 — 联系","축하하다 — 祝贺","그립다 — 想念","다정하다 — 亲切温柔"],
+  ["회사 — 公司","회의 — 会议","업무 — 工作任务","동료 — 同事","보고서 — 报告","마감 — 截止时间","확인하다 — 确认","제출하다 — 提交","해결하다 — 解决","책임 — 责任"],
+  ["여행 — 旅行","예약하다 — 预约","숙소 — 住宿","관광지 — 景点","출발하다 — 出发","도착하다 — 到达","짐 — 行李","환전하다 — 兑换货币","길을 잃다 — 迷路","경치 — 风景"],
+  ["건강 — 健康","운동하다 — 运动","습관 — 习惯","충분하다 — 充分","피곤하다 — 疲倦","회복하다 — 恢复","증상 — 症状","진료 — 诊疗","예방하다 — 预防","규칙적이다 — 有规律的"],
+  ["은행 — 银行","저축하다 — 储蓄","지출 — 支出","수입 — 收入","가격 — 价格","할인 — 折扣","영수증 — 小票","결제하다 — 付款","환불하다 — 退款","절약하다 — 节约"],
+  ["환경 — 环境","재활용 — 回收利用","쓰레기 — 垃圾","에너지 — 能源","오염 — 污染","보호하다 — 保护","줄이다 — 减少","분리하다 — 分类","지속 가능하다 — 可持续","실천하다 — 实践"],
+  ["목표 — 目标","계획 — 计划","경험 — 经验","도전하다 — 挑战","꾸준하다 — 坚持不懈","성장하다 — 成长","선택하다 — 选择","집중하다 — 集中","실수 — 失误","발전하다 — 发展进步"]
+];
 const TRACK_DAILIES:Record<string,{items:string[];material:string}[]> = {
   topik:[{items:["안녕하세요 — 你好","오늘 — 今天","공부하다 — 学习","좋아하다 — 喜欢","천천히 — 慢慢地","语法：-고 싶어요（想要……）","开口：오늘 한국어를 공부하고 싶어요."],material:"先听读 3 遍，再遮住中文独立说出完整句。"},{items:["약속 — 约定","시간 — 时间","친구 — 朋友","만나다 — 见面","기다리다 — 等待","语法：-(으)ㄹ 거예요（将要……）","造句：주말에 친구를 만날 거예요."],material:"把例句里的“朋友”替换成家人、同事，再说两遍。"},{items:["날씨 — 天气","따뜻하다 — 温暖","산책 — 散步","공원 — 公园","기분 — 心情","语法：-아서/어서（因为／然后）","造句：날씨가 좋아서 공원에서 산책해요."],material:"注意 좋아서 的连读，录下自己的一遍朗读。"}],
   cpa:[{items:["概念：资产的定义、确认条件与常见分类","辨析：资产与费用的边界","例题：用银行存款购入设备，会同时影响哪些科目？","复盘：用一句话解释“预期带来经济利益”"],material:"用 15 分钟画出资产、负债、所有者权益的关系图。"},{items:["概念：权责发生制","辨析：收付实现制与权责发生制","例题：12 月提供服务、次年 1 月收款，收入何时确认？","复盘：列举一个预付和一个应付场景"],material:"先判断业务发生时间，再判断现金收付时间。"},{items:["概念：借贷记账法与会计恒等式","规则：资产增加记借方，负债增加记贷方","例题：短期借款到账如何编制分录？","复盘：检查借贷金额是否相等"],material:"今天只练 3 笔简单分录，重点是方向准确。"}],
@@ -236,6 +250,7 @@ const EXTRA_TRACK_DAILIES:Record<string,{items:string[];material:string}[]>={
 };
 Object.entries(EXTRA_TRACK_DAILIES).forEach(([id,sets])=>TRACK_DAILIES[id]?.push(...sets));
 Object.entries(MORE_DAILY_LESSONS).forEach(([id,sets])=>TRACK_DAILIES[id]?.push(...sets));
+Object.entries(LEARNING_ROTATION_EXPANSION).forEach(([id,sets])=>TRACK_DAILIES[id]?.push(...sets));
 const TRACK_RESOURCES:Record<string,{label:string;url:string}[]>={
   law:[{label:"中国法律服务网",url:"https://www.12348.gov.cn/"},{label:"B站 · 法律常识案例",url:"https://search.bilibili.com/all?keyword=%E6%B3%95%E5%BE%8B%E5%B8%B8%E8%AF%86%20%E6%A1%88%E4%BE%8B"}],
   "finance-study":[{label:"中国投资者网",url:"https://www.investor.org.cn/"},{label:"上交所投资者教育",url:"https://edu.sse.com.cn/"},{label:"B站 · 股票基金基础",url:"https://search.bilibili.com/all?keyword=%E8%82%A1%E7%A5%A8%20%E5%9F%BA%E9%87%91%20%E5%85%A5%E9%97%A8"}],
@@ -254,9 +269,9 @@ const trackDaily = (id:string,date:string)=>{
     {text:"주말에 친구를 만날 거예요.",translation:"周末我要去见朋友。"},
     {text:"날씨가 좋아서 공원에서 산책해요.",translation:"因为天气很好，所以我在公园散步。"},
   ];
-  if(id==="ielts"){const speaking=ieltsSpeaking[dailyIndex(date,ieltsSpeaking.length)];return {words:IELTS_WORDS[dailyIndex(date,IELTS_WORDS.length)],items:["口语任务：先听示范，再按意群完成两遍跟读","跟读提示：注意重音、连读和句末语调"],material:speaking.text,speaking:speaking.text,translation:speaking.translation,language:"en-US"}}
+  if(id==="ielts"){const speaking=ieltsSpeaking[dailyIndex(date,ieltsSpeaking.length)];return {words:IELTS_WORDS[dailyIndex(date,IELTS_WORDS.length)],items:[],material:"",speaking:speaking.text,translation:speaking.translation,language:"en-US"}}
   const sets=TRACK_DAILIES[id];
-  if(id==="topik"&&sets){const speaking=topikSpeaking[dailyIndex(date,topikSpeaking.length)];return {...sets[dailyIndex(date,sets.length)],speaking:speaking.text,translation:speaking.translation,language:"ko-KR"}}
+  if(id==="topik"&&sets){const speaking=topikSpeaking[dailyIndex(date,topikSpeaking.length)],lesson=sets[dailyIndex(date,sets.length)],vocab=TOPIK_VOCAB[dailyIndex(date,TOPIK_VOCAB.length)];return {...lesson,items:[...vocab,...lesson.items],speaking:speaking.text,translation:speaking.translation,language:"ko-KR"}}
   return sets?{...sets[dailyIndex(date,sets.length)]}:{items:[],material:""};
 };
 const WORD_TRANSLATIONS:Record<string,string>={
@@ -264,6 +279,7 @@ const WORD_TRANSLATIONS:Record<string,string>={
   coherent:"她的论点清晰且连贯。",compelling:"这份报告提供了令人信服的证据。",evaluate:"学生应该认真评估每一个信息来源。",implement:"这座城市计划实施新政策。",maintain:"维持健康的平衡并不容易。",prioritize:"我们需要优先处理紧急任务。",fluctuate:"能源价格全年都会波动。",accessible:"在线课程让教育更容易获得。",controversial:"这项提议仍然极具争议。",justify:"你必须用例子证明自己的观点合理。",
   diverse:"这座城市拥有多元化的人口。",efficient:"公共交通是一种高效的选择。",emerge:"随着时间推移，新的挑战可能出现。",impact:"旅游业对当地文化有重大影响。",indicate:"这些数据表明增长保持稳定。",motivate:"小目标能够激励学习者。",preserve:"我们应该保护历史建筑。",relevant:"只加入相关信息。",transform:"科技可以改变工作场所。",widespread:"智能手机的使用如今十分普遍。"
 };
+Object.assign(WORD_TRANSLATIONS,IELTS_EXPANSION_TRANSLATIONS);
 const lessonFor=(skill:Skill,topic:string)=>{
   const agentContent=skill.id==="agent"?agentLesson(topic):undefined;
   if(agentContent)return {title:`${skill.name} · ${topic}`,definition:agentContent.definition,explanation:agentContent.plain,example:agentContent.example,practice:agentContent.practice,resources:agentContent.resources};
@@ -604,6 +620,14 @@ const greetings = [
 
 function useWorkbench() {
   const [data, setData] = useState<WorkbenchData | null>(null);
+  const [storageReady,setStorageReady]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    readPrimaryData<WorkbenchData>().then(stored=>{
+      if(active&&stored)setData(current=>mergeStoredData(current,stored));
+    }).finally(()=>{if(active)setStorageReady(true)});
+    return()=>{active=false};
+  },[]);
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -616,19 +640,9 @@ function useWorkbench() {
         const jobDefaults = phaseFiveDefaults();
         const travelDefaults = phaseSixDefaults();
         const petDefaults = catDefaults();
-        const shouldCleanSalary = localStorage.getItem(SALARY_CLEANUP_KEY)!=="done";
-        const shouldCleanGrowth = localStorage.getItem(GROWTH_CLEANUP_KEY)!=="done";
-        const shouldCleanJobFilters = localStorage.getItem(JOB_FILTER_CLEANUP_KEY)!=="done";
-        const shouldCleanSpecialDays = localStorage.getItem(SPECIAL_DAYS_CLEANUP_KEY)!=="done";
         const shouldRefreshContent = localStorage.getItem(CONTENT_REFRESH_KEY)!=="done";
-        const shouldCleanBirthdays = localStorage.getItem(BIRTHDAY_CLEANUP_KEY)!=="done";
-        const cleanFinance = withoutStoredSalary(parsed,financeDefaults,shouldCleanSalary);
-        if(shouldCleanSalary)localStorage.setItem(SALARY_CLEANUP_KEY,"done");
-        if(shouldCleanGrowth)localStorage.setItem(GROWTH_CLEANUP_KEY,"done");
-        if(shouldCleanJobFilters)localStorage.setItem(JOB_FILTER_CLEANUP_KEY,"done");
-        if(shouldCleanSpecialDays)localStorage.setItem(SPECIAL_DAYS_CLEANUP_KEY,"done");
+        const cleanFinance = withoutStoredSalary(parsed,financeDefaults,false);
         if(shouldRefreshContent)localStorage.setItem(CONTENT_REFRESH_KEY,"done");
-        if(shouldCleanBirthdays)localStorage.setItem(BIRTHDAY_CLEANUP_KEY,"done");
         const normalizedBookCategories=(Array.isArray(parsed.bookCategories)?parsed.bookCategories:petDefaults.bookCategories).filter((x:MoodTag)=>!["女性","新闻","读书","小说"].includes(x.name));
         if(!normalizedBookCategories.some((x:MoodTag)=>x.name==="文学"))normalizedBookCategories.unshift({id:"book-cat-literature",name:"文学",updatedAt:Date.now()});
         const normalizedPodcastCategories=(Array.isArray(parsed.podcastCategories)?parsed.podcastCategories:petDefaults.podcastCategories).filter((x:MoodTag)=>!["女性","新闻","读书"].includes(x.name));
@@ -643,7 +657,7 @@ function useWorkbench() {
             return {...track,subtitle:""};
           })
           .sort((a:LearningTrack,b:LearningTrack)=>trackOrder.indexOf(a.id)-trackOrder.indexOf(b.id));
-        const normalizedSpecialDays=mergePromoBackup(withKnownSpecials(Array.isArray(parsed.specialDays)?parsed.specialDays:travelDefaults.specialDays)).filter((item:SpecialDay)=>!shouldCleanBirthdays||item.kind!=="生日"||!["我的生日","妈妈的生日","爸爸的生日"].includes(item.title));
+        const normalizedSpecialDays=mergePromoBackup(Array.isArray(parsed.specialDays)?parsed.specialDays:travelDefaults.specialDays);
         setData({
           ...parsed,
           modifiedAt:parsed.modifiedAt||dataModifiedAt(parsed)||Date.now(),
@@ -651,7 +665,7 @@ function useWorkbench() {
           skills: (()=>{const list=(Array.isArray(parsed.skills)?parsed.skills:defaults.skills).map((skill:Skill)=>({...skill,name:skill.name.replace(/（基础）/g,"")}));const expression=defaults.skills.find(x=>x.id==="expression");return expression&&!list.some((x:Skill)=>x.id==="expression")?[...list,expression]:list})(),
           learningTracks: normalizedTracks,
           checkins: Array.isArray(parsed.checkins) ? parsed.checkins : defaults.checkins,
-          goals: (shouldCleanGrowth ? [] : (Array.isArray(parsed.goals) ? parsed.goals : defaults.goals)).filter((goal:Goal|{kind:string})=>goal.kind!=="副业") as Goal[],
+          goals: (Array.isArray(parsed.goals) ? parsed.goals : defaults.goals).filter((goal:Goal|{kind:string})=>goal.kind!=="副业") as Goal[],
           goalCategories: Array.isArray(parsed.goalCategories) ? parsed.goalCategories : defaults.goalCategories,
           periods: Array.isArray(parsed.periods) ? parsed.periods : healthDefaults.periods,
           workoutPlans: normalizeWorkoutSchedule(Array.isArray(parsed.workoutPlans) ? parsed.workoutPlans : healthDefaults.workoutPlans,Array.isArray(parsed.events)?parsed.events:[],Array.isArray(parsed.categories)?parsed.categories:categories),
@@ -664,7 +678,7 @@ function useWorkbench() {
           savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : financeDefaults.savingsGoals,
           financeSettings: cleanFinance.financeSettings,
           jobs: (Array.isArray(parsed.jobs) ? parsed.jobs : jobDefaults.jobs).filter((job:JobListing)=>job.id!=="job-jiansheng"),
-          jobCriteria: (Array.isArray(parsed.jobCriteria) ? parsed.jobCriteria : jobDefaults.jobCriteria).filter((criterion:JobCriterion)=>!shouldCleanJobFilters||!["criterion-keyword","criterion-size","criterion-location"].includes(criterion.id)),
+          jobCriteria: Array.isArray(parsed.jobCriteria) ? parsed.jobCriteria : jobDefaults.jobCriteria,
           destinations: Array.isArray(parsed.destinations) ? parsed.destinations : travelDefaults.destinations,
           travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
           packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
@@ -689,13 +703,14 @@ function useWorkbench() {
     }
   }, []);
   useEffect(() => {
-    if (!data)return;
+    if (!data||!storageReady)return;
     const current=localStorage.getItem(STORAGE_KEY);
     savePromoBackup(data.specialDays);
     const next=JSON.stringify(data);
-    if(current){try{const stored=JSON.parse(current);if(dataModifiedAt(stored)>dataModifiedAt(data)){setData(stored);return}}catch{}if(current!==next){saveSnapshot(current,"修改前自动保护");try{localStorage.setItem(STORAGE_KEY,next)}catch{try{localStorage.removeItem(BACKUP_KEY);localStorage.setItem(STORAGE_KEY,next)}catch{}}}}else try{localStorage.setItem(STORAGE_KEY,next)}catch{}
-  }, [data]);
-  useEffect(()=>{const sync=(event:StorageEvent)=>{if(event.key!==STORAGE_KEY||!event.newValue)return;try{const incoming=JSON.parse(event.newValue);incoming.specialDays=mergePromoBackup(Array.isArray(incoming.specialDays)?incoming.specialDays:[]);setData(current=>!current||dataModifiedAt(incoming)>dataModifiedAt(current)?incoming:current)}catch{}};window.addEventListener("storage",sync);return()=>window.removeEventListener("storage",sync)},[]);
+    writePrimaryData(data).catch(()=>{});
+    if(current&&current!==next){saveSnapshot(current,"修改前自动保护");try{localStorage.setItem(STORAGE_KEY,next)}catch{}}else if(!current)try{localStorage.setItem(STORAGE_KEY,next)}catch{}
+  }, [data,storageReady]);
+  useEffect(()=>{const sync=(event:StorageEvent)=>{if(event.key!==STORAGE_KEY||!event.newValue)return;try{const incoming=JSON.parse(event.newValue);incoming.specialDays=mergePromoBackup(Array.isArray(incoming.specialDays)?incoming.specialDays:[]);setData(current=>mergeStoredData(current,incoming))}catch{}};window.addEventListener("storage",sync);return()=>window.removeEventListener("storage",sync)},[]);
   return [data, setData] as const;
 }
 
@@ -802,7 +817,7 @@ export default function Home() {
         const jobDefaults = phaseFiveDefaults();
         const travelDefaults = phaseSixDefaults();
         const petDefaults = catDefaults();
-        const cleanFinance = withoutStoredSalary(parsed,financeDefaults);
+        const cleanFinance = withoutStoredSalary(parsed,financeDefaults,false);
         setPendingImport({
           ...parsed,
           skills: Array.isArray(parsed.skills) ? parsed.skills : defaults.skills,
@@ -826,7 +841,7 @@ export default function Home() {
           travelPlans: Array.isArray(parsed.travelPlans) ? parsed.travelPlans : travelDefaults.travelPlans,
           packingTemplate: Array.isArray(parsed.packingTemplate) ? parsed.packingTemplate : travelDefaults.packingTemplate,
           specialCategories: Array.isArray(parsed.specialCategories) ? parsed.specialCategories : travelDefaults.specialCategories,
-          specialDays: withKnownSpecials(Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays),
+          specialDays: Array.isArray(parsed.specialDays) ? parsed.specialDays : travelDefaults.specialDays,
           catProfiles: Array.isArray(parsed.catProfiles) ? parsed.catProfiles : petDefaults.catProfiles,
           catCare: Array.isArray(parsed.catCare) ? parsed.catCare : petDefaults.catCare,
           catGrowth: Array.isArray(parsed.catGrowth) ? parsed.catGrowth : petDefaults.catGrowth,
@@ -882,7 +897,7 @@ export default function Home() {
         jobCriteria: merge(current.jobCriteria, pendingImport.jobCriteria),
         destinations: merge(current.destinations, pendingImport.destinations),
         travelPlans: merge(current.travelPlans, pendingImport.travelPlans),
-        packingTemplate: pendingImport.packingTemplate.length ? pendingImport.packingTemplate : current.packingTemplate,
+        packingTemplate: [...new Map([...current.packingTemplate,...pendingImport.packingTemplate].map(item=>[item.id,item])).values()],
         specialCategories: merge(current.specialCategories, pendingImport.specialCategories),
         specialDays: merge(current.specialDays, pendingImport.specialDays),
         catProfiles: merge(current.catProfiles, pendingImport.catProfiles),
@@ -1757,7 +1772,7 @@ function Cats({data,patch,initialCatId}:{data:WorkbenchData;patch:(fn:(d:Workben
   useEffect(()=>{if(initialCatId&&data.catProfiles.some(x=>x.id===initialCatId))setCatId(initialCatId)},[initialCatId,data.catProfiles]);
   useEffect(()=>{if(cat){setProfile({name:cat.name,birthday:cat.birthday,breed:cat.breed,sex:cat.sex,homeDate:cat.homeDate,neutered:cat.neutered,photo:cat.photo||""})}},[cat?.id]);
   const readImage=(file:File|undefined,done:(value:string)=>void)=>{if(!file)return;const reader=new FileReader();reader.onload=()=>done(String(reader.result));reader.readAsDataURL(file)};
-  const saveProfile=(e:FormEvent)=>{e.preventDefault();if(!profile.name.trim())return;const target=creatingCat?undefined:cat;const id=target?.id||uid();const item:CatProfile={id,name:profile.name.trim(),birthday:profile.birthday,breed:profile.breed.trim(),sex:profile.sex,homeDate:profile.homeDate,neutered:profile.neutered,photo:profile.photo||undefined,updatedAt:Date.now()};patch(d=>({...d,catProfiles:target?d.catProfiles.map(x=>x.id===target.id?item:x):[...d.catProfiles,item],catCare:target?d.catCare:[...d.catCare,...["喂食","换水","铲屎"].map((title,order)=>({id:uid(),catId:id,title,date:today,done:false,order,updatedAt:Date.now()}))]}));setCatId(id);setCreatingCat(false);setShowProfile(false)};
+  const saveProfile=(e:FormEvent)=>{e.preventDefault();if(!profile.name.trim())return;const target=creatingCat?undefined:cat;const id=target?.id||uid();const item:CatProfile={id,name:profile.name.trim(),birthday:profile.birthday,breed:profile.breed.trim(),sex:profile.sex,homeDate:profile.homeDate,neutered:profile.neutered,photo:profile.photo||undefined,updatedAt:Date.now()};const defaults:[string,CatCarePeriod[]][]=[["喂食",["早晨","中午","晚上"]],["换水",["早晨","晚上"]],["铲屎",["早晨","晚上"]]];patch(d=>({...d,catProfiles:target?d.catProfiles.map(x=>x.id===target.id?item:x):[...d.catProfiles,item],catCare:target?d.catCare:[...d.catCare,...defaults.map(([title,periods],order)=>({id:uid(),catId:id,title,date:today,done:false,periods,completedPeriods:[],order,updatedAt:Date.now()}))]}));setCatId(id);setCreatingCat(false);setShowProfile(false)};
   const newCat=()=>{setCreatingCat(true);setProfile({name:"",birthday:"",breed:"",sex:"未知",homeDate:"",neutered:false,photo:""});setShowProfile(true)};
   const cares=cat?data.catCare.filter(x=>x.catId===cat.id&&x.date===today).sort((a,b)=>a.order-b.order):[];
   const weights=cat?[...data.catWeights].filter(x=>x.catId===cat.id).sort((a,b)=>a.date.localeCompare(b.date)).slice(-8):[];
@@ -1771,7 +1786,14 @@ function Cats({data,patch,initialCatId}:{data:WorkbenchData;patch:(fn:(d:Workben
     {!cat?<section className="cat-welcome"><span>🐾</span><h2>先认识一下你的小猫</h2><p>填写一张简单的档案，之后的照护、体重和健康记录都会归到它名下。</p><button onClick={newCat}>建立猫咪档案</button></section>:<>
       <section className="cat-profile-card"><div className="cat-portrait">{cat.photo?<img src={cat.photo} alt={cat.name}/>:<span>🐱</span>}</div><div><span className="eyebrow">CAT PROFILE</span><h2>{cat.name}</h2><p>{cat.breed||"品种待补充"} · {cat.sex} · {ageText}</p><div className="cat-tags"><span>{cat.neutered?"已绝育":"未绝育"}</span>{cat.homeDate&&<span>{displayDate(cat.homeDate)} 到家</span>}</div></div><button onClick={()=>{setCreatingCat(false);setShowProfile(true)}}>编辑档案</button></section>
       <div className="cat-dashboard-grid">
-        <section className="cat-panel cat-care-panel"><div className="cat-section-head"><div><span className="eyebrow">TODAY&apos;S CARE</span><h2>今日照护</h2></div><b>{cares.filter(x=>x.done).length}/{cares.length}</b></div><div className="cat-care-list">{cares.map(item=><article key={item.id}><label><input type="checkbox" checked={item.done} onChange={()=>patch(d=>({...d,catCare:d.catCare.map(x=>x.id===item.id?{...x,done:!x.done,updatedAt:Date.now()}:x)}))}/><i></i><input value={item.title} onChange={e=>patch(d=>({...d,catCare:d.catCare.map(x=>x.id===item.id?{...x,title:e.target.value,updatedAt:Date.now()}:x)}))}/></label><button onClick={()=>patch(d=>({...d,catCare:d.catCare.filter(x=>x.id!==item.id)}))}>×</button></article>)}</div><form className="cat-inline-form" onSubmit={e=>{e.preventDefault();if(!careTitle.trim())return;patch(d=>({...d,catCare:[...d.catCare,{id:uid(),catId:cat.id,title:careTitle.trim(),date:today,done:false,order:cares.length,updatedAt:Date.now()}]}));setCareTitle("")}}><input value={careTitle} onChange={e=>setCareTitle(e.target.value)} placeholder="添加喂药、梳毛等照护"/><button>＋</button></form></section>
+        <section className="cat-panel cat-care-panel">
+          <div className="cat-section-head"><div><span className="eyebrow">TODAY&apos;S CARE</span><h2>今日照护</h2></div><b>{cares.filter(item=>item.done).length}/{cares.length}</b></div>
+          <div className="cat-care-list">{cares.map(item=><article key={item.id}>
+            <label className="cat-care-check"><input type="checkbox" checked={item.done} onChange={()=>patch(d=>({...d,catCare:d.catCare.map(x=>x.id===item.id?{...x,done:!x.done,updatedAt:Date.now()}:x)}))}/><i></i><input className="cat-care-title" value={item.title} onChange={e=>patch(d=>({...d,catCare:d.catCare.map(x=>x.id===item.id?{...x,title:e.target.value,updatedAt:Date.now()}:x)}))}/></label>
+            <button onClick={()=>patch(d=>({...d,catCare:d.catCare.filter(x=>x.id!==item.id)}))}>×</button>
+          </article>)}</div>
+          <form className="cat-inline-form" onSubmit={e=>{e.preventDefault();if(!careTitle.trim())return;patch(d=>({...d,catCare:[...d.catCare,{id:uid(),catId:cat.id,title:careTitle.trim(),date:today,done:false,order:cares.length,updatedAt:Date.now()}]}));setCareTitle("")}}><input value={careTitle} onChange={e=>setCareTitle(e.target.value)} placeholder="添加喂药、梳毛等照护"/><button>＋</button></form>
+        </section>
         <section className="cat-panel"><div className="cat-section-head"><div><span className="eyebrow">WEIGHT CURVE</span><h2>体重趋势</h2></div><b>{weights.at(-1)?.weight||"—"} kg</b></div><div className="cat-weight-chart">{weights.length?weights.map(x=><div key={x.id}><span style={{height:`${Math.max(12,x.weight/maxWeight*100)}%`}} title={`${x.weight} kg`}></span><small>{displayDate(x.date)}</small><b>{x.weight}</b></div>):<p>记录第一次体重后，这里会出现趋势。</p>}</div><form className="cat-inline-form weight" onSubmit={e=>{e.preventDefault();const value=Number(weight);if(!value)return;patch(d=>({...d,catWeights:[...d.catWeights,{id:uid(),catId:cat.id,date:today,weight:value,updatedAt:Date.now()}]}));setWeight("")}}><input type="number" step=".01" min=".1" value={weight} onChange={e=>setWeight(e.target.value)} placeholder="今天的体重（kg）"/><button>记录</button></form><div className="cat-weight-history">{[...weights].reverse().map(item=><article key={item.id}><input type="date" value={item.date} onChange={e=>patch(d=>({...d,catWeights:d.catWeights.map(x=>x.id===item.id?{...x,date:e.target.value,updatedAt:Date.now()}:x)}))}/><label><input type="number" min=".1" step=".01" value={item.weight} onChange={e=>patch(d=>({...d,catWeights:d.catWeights.map(x=>x.id===item.id?{...x,weight:Number(e.target.value),updatedAt:Date.now()}:x)}))}/><span>kg</span></label><button onClick={()=>patch(d=>({...d,catWeights:d.catWeights.filter(x=>x.id!==item.id)}))}>删除</button></article>)}</div></section>
       </div>
       <section className="cat-panel cat-health-panel"><div className="cat-section-head"><div><span className="eyebrow">HEALTH REMINDERS</span><h2>健康提醒</h2></div></div><form className="cat-health-form" onSubmit={e=>{e.preventDefault();if(!health.title.trim())return;patch(d=>({...d,catHealth:[...d.catHealth,{id:uid(),catId:cat.id,kind:health.kind,title:health.title.trim(),date:health.date,note:health.note.trim(),done:false,updatedAt:Date.now()}]}));setHealth({...health,title:"",note:""})}}><select value={health.kind} onChange={e=>setHealth({...health,kind:e.target.value as CatHealth["kind"]})}>{["疫苗","驱虫","体检","复查","用药","其他"].map(x=><option key={x}>{x}</option>)}</select><input value={health.title} onChange={e=>setHealth({...health,title:e.target.value})} placeholder="例如：体内驱虫"/><input type="date" value={health.date} onChange={e=>setHealth({...health,date:e.target.value})}/><input value={health.note} onChange={e=>setHealth({...health,note:e.target.value})} placeholder="备注（选填）"/><button>添加提醒</button></form><div className="cat-reminder-list">{reminders.map(item=><article className={item.done?"done":""} key={item.id}><button onClick={()=>patch(d=>({...d,catHealth:d.catHealth.map(x=>x.id===item.id?{...x,done:!x.done,updatedAt:Date.now()}:x)}))}>{item.done?"✓":"○"}</button><time>{displayDate(item.date)}</time><div><b>{item.kind} · {item.title}</b>{item.note&&<p>{item.note}</p>}</div><button onClick={()=>patch(d=>({...d,catHealth:d.catHealth.filter(x=>x.id!==item.id)}))}>删除</button></article>)}</div></section>

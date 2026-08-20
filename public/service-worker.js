@@ -1,4 +1,4 @@
-const CACHE = "bear-workbench-v55";
+const CACHE = "bear-workbench-v56";
 const APP_SHELL = "/bear-workbench-app-shell";
 const OFFLINE_ASSETS = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png", "/bears/v2/bear-heart.png", "/bears/v2/bear-profile.png"];
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(OFFLINE_ASSETS)).then(async()=>{const cache=await caches.open(CACHE);const shell=await cache.match("/");if(shell)await cache.put(APP_SHELL,shell.clone())}).then(() => self.skipWaiting())));

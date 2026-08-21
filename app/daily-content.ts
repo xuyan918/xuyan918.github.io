@@ -64,7 +64,25 @@ export const DAILY_RECIPE_POOL:DailyRecipe[]=[
   {id:"dd3",meal:"晚餐",name:"海带豆腐牛肉汤",ingredients:"瘦牛肉、海带、豆腐、白萝卜",calories:410,method:"牛肉焯水，与萝卜炖软，加入海带豆腐再煮8分钟。",updatedAt:now},
   {id:"dd4",meal:"晚餐",name:"香煎鳕鱼蔬菜盘",ingredients:"鳕鱼、西葫芦、蘑菇、小番茄",calories:420,method:"鳕鱼擦干少油煎熟，蔬菜同锅煎软，以黑胡椒和柠檬调味。",updatedAt:now},
   {id:"dd5",meal:"晚餐",name:"菠菜鸡蛋豆腐羹",ingredients:"菠菜、鸡蛋、嫩豆腐、玉米粒",calories:320,method:"豆腐和玉米煮开，淋入蛋液，最后放焯过的菠菜并轻轻调味。",updatedAt:now},
-  {id:"dd6",meal:"晚餐",name:"韩式牛肉蔬菜拌饭",ingredients:"瘦牛肉、豆芽、胡萝卜、菠菜、米饭",calories:510,method:"各类蔬菜分别少油炒熟，牛肉快炒，铺在半碗米饭上，以少量辣酱拌匀。",updatedAt:now}
+  {id:"dd6",meal:"晚餐",name:"韩式牛肉蔬菜拌饭",ingredients:"瘦牛肉、豆芽、胡萝卜、菠菜、米饭",calories:510,method:"各类蔬菜分别少油炒熟，牛肉快炒，铺在半碗米饭上，以少量辣酱拌匀。",updatedAt:now},
+  {id:"db7",meal:"早餐",name:"苹果肉桂隔夜燕麦",ingredients:"燕麦、牛奶、苹果、肉桂粉",calories:340,method:"燕麦与牛奶冷藏浸泡一夜，早晨加入苹果丁和少量肉桂粉；胃部敏感可加热后食用。",updatedAt:now},
+  {id:"db8",meal:"早餐",name:"南瓜鸡蛋三明治",ingredients:"全麦面包、南瓜、鸡蛋、生菜",calories:370,method:"南瓜蒸熟压泥，鸡蛋煮熟切片，与生菜一起夹入烘热的全麦面包。",updatedAt:now},
+  {id:"db9",meal:"早餐",name:"豆浆菌菇菜包",ingredients:"无糖豆浆、全麦菜包、口蘑、小番茄",calories:380,method:"菜包蒸热，口蘑少油煎熟并搭配小番茄；豆浆充分煮沸后饮用。",updatedAt:now},
+  {id:"db10",meal:"早餐",name:"莓果奇亚籽酸奶杯",ingredients:"无糖酸奶、草莓、蓝莓、奇亚籽",calories:300,method:"奇亚籽先用少量牛奶浸泡，分层放入酸奶与莓果，冷藏十分钟即可。",updatedAt:now},
+  {id:"db11",meal:"早餐",name:"山药鸡肉蔬菜粥",ingredients:"山药、鸡肉、大米、青菜",calories:330,method:"大米煮至开花，加入山药丁与熟鸡丝继续煮软，出锅前加入切碎青菜。",updatedAt:now},
+  {id:"db12",meal:"早餐",name:"红薯芝士蛋饼",ingredients:"红薯、鸡蛋、低脂芝士、菠菜",calories:400,method:"红薯蒸熟压泥，拌入蛋液和菠菜碎，小火煎至两面定型，最后放少量芝士焖化。",updatedAt:now},
+  {id:"dl7",meal:"午餐",name:"咖喱鸡肉时蔬饭",ingredients:"鸡腿肉、土豆、胡萝卜、杂粮饭",calories:550,method:"鸡肉煎至变色，加入土豆胡萝卜和清水炖软，放少量咖喱块收汁后搭配杂粮饭。",updatedAt:now},
+  {id:"dl8",meal:"午餐",name:"芹菜香干牛肉丝",ingredients:"瘦牛肉、芹菜、香干、糙米饭",calories:500,method:"牛肉切丝腌制后快炒盛出，芹菜香干炒熟再回锅，少盐调味并搭配糙米饭。",updatedAt:now},
+  {id:"dl9",meal:"午餐",name:"鸡蛋番茄荞麦面",ingredients:"荞麦面、鸡蛋、番茄、青菜",calories:470,method:"番茄炒软加水煮汤，放入荞麦面和青菜煮熟，最后淋入蛋液。",updatedAt:now},
+  {id:"dl10",meal:"午餐",name:"紫菜虾仁豆腐饭",ingredients:"虾仁、豆腐、紫菜、米饭",calories:490,method:"虾仁煎熟，豆腐加少量生抽焖煮，铺在米饭上并撒碎紫菜。",updatedAt:now},
+  {id:"dl11",meal:"午餐",name:"鸡肉蘑菇意面",ingredients:"全麦意面、鸡胸肉、蘑菇、菠菜",calories:530,method:"意面煮熟，鸡肉与蘑菇少油炒熟，加入菠菜和少量煮面水拌匀。",updatedAt:now},
+  {id:"dl12",meal:"午餐",name:"豆腐肉末茄子饭",ingredients:"瘦肉末、豆腐、茄子、杂粮饭",calories:540,method:"茄子蒸软减少吸油，肉末炒熟后加入豆腐和茄子焖煮，以少量生抽调味。",updatedAt:now},
+  {id:"dd7",meal:"晚餐",name:"丝瓜菌菇鸡蛋汤",ingredients:"丝瓜、鸡蛋、口蘑、豆腐",calories:300,method:"口蘑炒香后加水，放丝瓜和豆腐煮软，最后淋入蛋液并少量调味。",updatedAt:now},
+  {id:"dd8",meal:"晚餐",name:"清蒸鲈鱼杂蔬",ingredients:"鲈鱼、西兰花、胡萝卜、玉米",calories:400,method:"鲈鱼加姜片蒸熟，西兰花胡萝卜玉米焯熟，搭配少量蒸鱼豉油。",updatedAt:now},
+  {id:"dd9",meal:"晚餐",name:"番茄牛肉蔬菜汤",ingredients:"瘦牛肉、番茄、土豆、卷心菜",calories:430,method:"牛肉焯水后与番茄土豆炖软，最后加入卷心菜煮熟。",updatedAt:now},
+  {id:"dd10",meal:"晚餐",name:"芦笋虾仁炒蛋",ingredients:"芦笋、虾仁、鸡蛋、小番茄",calories:350,method:"芦笋焯水，虾仁炒至变色后加入蛋液，凝固前放芦笋和小番茄。",updatedAt:now},
+  {id:"dd11",meal:"晚餐",name:"白菜豆腐粉丝煲",ingredients:"白菜、豆腐、粉丝、香菇",calories:360,method:"香菇炒香，加白菜豆腐和清水煮开，粉丝最后放入避免过软。",updatedAt:now},
+  {id:"dd12",meal:"晚餐",name:"鸡胸肉南瓜温沙拉",ingredients:"鸡胸肉、南瓜、四季豆、生菜",calories:410,method:"南瓜蒸熟，鸡胸肉煎熟切片，四季豆焯熟后与生菜拌匀，加入少量油醋汁。",updatedAt:now}
 ];
 
 const care=(title:string,body:string,drink:string,meal:string,sport:string,wear:string):CareAdvice=>({title,body,drink,meal,sport,wear});

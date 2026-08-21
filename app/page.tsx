@@ -8,6 +8,7 @@ import { LEARNING_ROTATION_EXPANSION } from "./learning-expansion";
 import { IELTS_EXPANSION_TRANSLATIONS, IELTS_WORDS_EXPANSION } from "./ielts-expansion";
 import { careerLesson, careerResources } from "./career-content";
 import { mergeStoredData, readPrimaryData, writePrimaryData } from "./data-storage";
+import { parseFinanceText } from "./finance-parser";
 
 type View = "home" | "calendar" | "growth" | "health" | "finance" | "jobs" | "travel" | "memos" | "cats";
 type Category = { id: string; name: string; color: string };
@@ -966,7 +967,8 @@ function Dashboard({ data, go, goSection, openCat, toggleTodo, patch }: { data: 
   const todays = data.todos.filter((t) => t.date === today);
   const todayStudy = data.checkins.filter((c) => c.date === today);
   const careerCount = data.skills.filter((s) => s.lastCheckin === today).length;
-  const todayPlans=data.workoutPlans.filter(p=>p.weekday===new Date().getDay());
+  const currentWorkoutWeek=weekStartKey(today);
+  const todayPlans=data.workoutPlans.filter(p=>(p.weekStart||currentWorkoutWeek)===currentWorkoutWeek&&p.weekday===new Date().getDay());
   const fitnessCount=todayPlans.filter(p=>p.completedDates?.includes(today)).length;
   const todaysEvents=[...data.events].filter(e=>e.date===today).sort((a,b)=>a.start.localeCompare(b.start));
   const nowTime=`${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -1309,6 +1311,7 @@ function Health({ data, patch, initialTab="cycle" }: { data:WorkbenchData; patch
 
 function TrendCanvas({ points }:{ points:{label:string;income:number;expense:number}[] }) {
   const ref=useRef<HTMLCanvasElement>(null);
+  const [selected,setSelected]=useState<number|null>(null);
   useEffect(()=>{
     const canvas=ref.current;if(!canvas)return;
     const ratio=window.devicePixelRatio||1;const width=canvas.clientWidth;const height=canvas.clientHeight;
@@ -1318,7 +1321,8 @@ function TrendCanvas({ points }:{ points:{label:string;income:number;expense:num
     ctx.strokeStyle="#eee3df";ctx.lineWidth=1;for(let i=0;i<4;i++){const y=padY+i*chartH/3;ctx.beginPath();ctx.moveTo(padX,y);ctx.lineTo(width-padX,y);ctx.stroke()}
     draw("#d27d8b");
   },[points]);
-  return <canvas className="trend-canvas" ref={ref} aria-label="支出趋势图"/>;
+  const max=Math.max(1,...points.map(p=>p.expense));
+  return <div className="trend-interactive" style={{minWidth:`${Math.max(520,points.length*28)}px`}}><canvas className="trend-canvas" ref={ref} aria-label="支出趋势图"/>{points.map((point,index)=><button type="button" key={`${point.label}-${index}`} className="trend-point" style={{left:`${points.length===1?50:2+index/(points.length-1)*96}%`,top:`${8+(1-point.expense/max)*78}%`}} aria-label={`${point.label}支出${point.expense.toFixed(2)}元`} onClick={()=>setSelected(selected===index?null:index)}>{selected===index&&<span>{point.label}<b>¥ {point.expense.toFixed(2)}</b></span>}</button>)}</div>;
 }
 
 function Finance({ data, patch, initialTab="ledger" }:{data:WorkbenchData;patch:(fn:(d:WorkbenchData)=>WorkbenchData)=>void;initialTab?:"ledger"|"shopping"|"advice"}) {
@@ -1347,19 +1351,16 @@ function Finance({ data, patch, initialTab="ledger" }:{data:WorkbenchData;patch:
   const colors=expenseGroups.map(([id])=>data.financeCategories.find(c=>c.id===id)?.color||"#aaa");
   let angle=0;const donut=expenseGroups.length?`conic-gradient(${expenseGroups.map(([,value],i)=>{const from=angle;angle+=value/expenseTotal*360;return `${colors[i]} ${from}deg ${angle}deg`}).join(",")})`:"#f1e8e5";
   const trend=useMemo(()=>{
-    const count=range==="year"?12:range==="month"?Math.min(new Date().getDate(),14):7;const result:{label:string;income:number;expense:number}[]=[];
-    for(let i=count-1;i>=0;i--){const d=new Date();if(range==="year"){d.setMonth(d.getMonth()-i);d.setDate(1)}else d.setDate(d.getDate()-i);const key=range==="year"?`${d.getFullYear()}-${pad(d.getMonth()+1)}`:dayKey(d);const matches=data.financeEntries.filter(e=>range==="year"?e.date.startsWith(key):e.date===key);result.push({label:range==="year"?`${d.getMonth()+1}月`:`${d.getMonth()+1}/${d.getDate()}`,income:matches.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0),expense:matches.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0)})}return result;
+    const now=new Date();const result:{label:string;income:number;expense:number}[]=[];
+    const dates:Date[]=[];
+    if(range==="year")for(let month=0;month<12;month++)dates.push(new Date(now.getFullYear(),month,1,12));
+    else if(range==="month"){const days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();for(let day=1;day<=days;day++)dates.push(new Date(now.getFullYear(),now.getMonth(),day,12))}
+    else {const count=7;for(let i=count-1;i>=0;i--){const d=new Date(now);d.setDate(d.getDate()-i);dates.push(d)}}
+    dates.forEach(d=>{const key=range==="year"?`${d.getFullYear()}-${pad(d.getMonth()+1)}`:dayKey(d);const matches=data.financeEntries.filter(e=>range==="year"?e.date.startsWith(key):e.date===key);result.push({label:range==="year"?`${d.getMonth()+1}月`:`${d.getMonth()+1}/${d.getDate()}`,income:matches.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0),expense:matches.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0)})});return result;
   },[data.financeEntries,range]);
   const parseEntry=(source=quick)=>{
-    const text=source.trim();if(!text)return false;
-    const d=new Date();if(/昨天/.test(text))d.setDate(d.getDate()-1);else if(/前天/.test(text))d.setDate(d.getDate()-2);
-    const explicitDate=text.match(/(20\d{2})[年/\-.](\d{1,2})[月/\-.](\d{1,2})[日号]?/);const monthDay=text.match(/(?<!\d)(\d{1,2})月(\d{1,2})[日号]?/);if(explicitDate)d.setFullYear(Number(explicitDate[1]),Number(explicitDate[2])-1,Number(explicitDate[3]));else if(monthDay)d.setFullYear(d.getFullYear(),Number(monthDay[1])-1,Number(monthDay[2]));
-    let time=`${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;const tm=text.match(/(?:上午|中午|下午|晚上)?\s*(\d{1,2})[点:：](\d{1,2})?/);if(tm){let h=Number(tm[1]);if(/下午|晚上/.test(tm[0])&&h<12)h+=12;if(/中午/.test(tm[0])&&h<11)h+=12;time=`${pad(h)}:${pad(Number(tm[2]||0))}`}else if(/早晨|早上/.test(text))time="09:00";else if(/上午/.test(text))time="10:00";else if(/中午/.test(text))time="12:00";else if(/下午/.test(text))time="15:00";else if(/晚上/.test(text))time="19:00";
-    const money=[...text.matchAll(/(?:¥|￥)\s*(\d+(?:\.\d{1,2})?)|(\d+(?:\.\d{1,2})?)\s*(?:元|块)/g)].map(m=>Number(m[1]||m[2]));const nums=[...text.matchAll(/\d+(?:\.\d{1,2})?/g)].map(m=>Number(m[0]));const amount=money[money.length-1]||nums[nums.length-1]||0;if(!amount)return false;
-    const isIncome=/收入|工资|奖金|红包|卖闲置|收到|转入|生活费/.test(text);const map:[RegExp,string][]=[[/饭|吃|餐|肉片|外卖|早餐|午餐|晚餐/,"餐饮"],[/奶茶|咖啡|茶|饮料/,"饮品"],[/地铁|打车|公交|滴滴/,"交通"],[/房租|租金/,"房租"],[/普拉提|健身|瑜伽/,"运动"],[/书|课程|学习/,"学习"],[/衣服|裙|鞋|服饰/,"服饰"],[/护肤|化妆|美容/,"美容"],[/工资/,"工资"],[/红包/,"红包"],[/闲置/,"卖闲置"],[/旅行|酒店|机票/,"旅行"],[/快递/,"快递"],[/医院|药|医疗/,"医疗"],[/游戏/,"游戏"]];
-    const name=map.find(([key])=>key.test(text))?.[1]||(isIncome?"其他收入":"其他");let cat=data.financeCategories.find(c=>c.type===(isIncome?"income":"expense")&&c.name===name);if(!cat)cat=data.financeCategories.find(c=>c.type===(isIncome?"income":"expense"));
-    const note=text.replace(/(?:20\d{2}年)?\d{1,2}月\d{1,2}[日号]?/g,"").replace(/今天|昨天|前天|早晨|早上|上午|中午|下午|晚上/g,"").replace(/(?:\d{1,2})[点:：]\d{0,2}/g,"").replace(/\d+(?:\.\d{1,2})?\s*(?:元|块)?/g,"").replace(/花了|支付|支出|收入|消费|一笔/g,"").replace(/[，,。.\s]+/g," ").trim()||name;
-    patch(x=>({...x,financeEntries:[...x.financeEntries,{id:uid(),type:isIncome?"income":"expense",categoryId:cat!.id,amount,note,date:dayKey(d),time,updatedAt:Date.now()}]}));setQuick("");return true;
+    const parsed=parseFinanceText(source);if(!parsed)return false;let cat=data.financeCategories.find(c=>c.type===parsed.type&&c.name===parsed.category);if(!cat)cat=data.financeCategories.find(c=>c.type===parsed.type&&c.name===(parsed.type==="income"?"其他收入":"其他"))||data.financeCategories.find(c=>c.type===parsed.type);
+    patch(x=>({...x,financeEntries:[...x.financeEntries,{id:uid(),type:parsed.type,categoryId:cat!.id,amount:parsed.amount,note:parsed.note,date:parsed.date,time:parsed.time,updatedAt:Date.now()}]}));setQuick("");return true;
   };
   const addShopping=(e:FormEvent)=>{e.preventDefault();if(!shopForm.name.trim())return;const name=shopForm.name.trim(),price=Number(shopForm.price)||0,now=Date.now();patch(d=>({...d,shoppingItems:[...d.shoppingItems,{id:uid(),name,price,saved:0,purchased:false,updatedAt:now}],savingsGoals:[...d.savingsGoals,{id:uid(),name,target:price,saved:0,updatedAt:now}]}));setShopForm({name:"",price:""})};
   const addGoal=(e:FormEvent)=>{e.preventDefault();if(!goalForm.name.trim())return;patch(d=>({...d,savingsGoals:[...d.savingsGoals,{id:uid(),name:goalForm.name.trim(),target:Number(goalForm.target)||0,saved:Number(goalForm.saved)||0,updatedAt:Date.now()}]}));setGoalForm({name:"",target:"",saved:""})};
